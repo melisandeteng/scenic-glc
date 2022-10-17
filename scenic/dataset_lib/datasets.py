@@ -64,6 +64,8 @@ _IMPORT_TABLE = {
         'scenic.projects.robust_segvit.datasets.segmentation_datasets',
     'robust_segvit_variants':
         'scenic.projects.robust_segvit.datasets.segmentation_variants',
+    'glc_dataset':
+        'scenic.projects.glc.data.glc_dataset',
 }
 
 
