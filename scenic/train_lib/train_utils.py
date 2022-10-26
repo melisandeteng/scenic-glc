@@ -254,6 +254,7 @@ def get_dataset(
     config: ml_collections.ConfigDict,
     data_rng: PRNGKey,
     *,
+    data_dir="/network/projects/_groups/ecosystem-embeddings/", 
     start_step: Optional[int] = None,
     num_local_shards: Optional[int] = None,
     dataset_service_address: Optional[str] = None,
@@ -287,7 +288,7 @@ def get_dataset(
   logging.info('host_id : %d', jax.process_index())
 
   dataset_name = dataset_name or config.dataset_name
-  dataset_builder = datasets.get_dataset(dataset_name)
+  dataset_builder = datasets.get_dataset(dataset_name)#, data_dir=data_dir)
 
   batch_size = config.batch_size
   if batch_size % device_count > 0:

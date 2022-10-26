@@ -32,6 +32,7 @@ def get_config():
       'test': 36421
     }
     
+    config.bands = ["rgb", "near_ir"]
     config.num_classes = 17035
     config.crop_size=224
     config.data_augmentations = ["glc_default"]
@@ -50,7 +51,7 @@ def get_config():
     config.max_grad_norm = None
     config.label_smoothing = None
     config.num_training_epochs = 90
-    config.batch_size = 32 #8192
+    config.batch_size = 32 #32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
@@ -72,7 +73,7 @@ def get_config():
     config.xprof = True  # Profile using xprof.
     config.checkpoint = True  # Do checkpointing.
     config.checkpoint_steps = 10 * steps_per_epoch
-    config.debug_train = False  # Debug mode during training.
+    config.debug_train = True  # Debug mode during training.
     config.debug_eval = False  # Debug mode during eval.
     return config
 

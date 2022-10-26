@@ -114,7 +114,7 @@ def glc_load_split(dsfactory,
         split_size = TRAIN_IMAGES // jax.process_count()
         start = jax.process_index() * split_size
         split = 'train[{}:{}]'.format(start, start + split_size)
-    elif subset=="val":
+    elif subset=="validation":
         split_size = EVAL_IMAGES // jax.process_count()
         start = jax.process_index() * split_size
         split = 'validation[{}:{}]'.format(start, start + split_size)
@@ -124,7 +124,7 @@ def glc_load_split(dsfactory,
         split = 'test[{}:{}]'.format(start, start + split_size)
 
     
-    a = dsfactory()
+    a = dsfactory(subset=subset)
     dataset = tf.data.TFRecordDataset([a.path])
 
     #pass every single feature through our mapping function
@@ -162,19 +162,22 @@ def get_augmentations(example, num_channels=3, dtype=tf.float32, data_augmentati
     """
 
     image = tf.cast(example['inputs'], dtype=dtype)
-
+   
     if data_augmentations is not None:
         if 'glc_default' in data_augmentations:
             if subset=="train":
+                example["label"] = tf.one_hot(example["label"], 17035)
                 image = dataset_utils.augment_random_crop_flip(
                   image, crop_size,crop_size, num_channels,crop_padding=4, flip=True)
                 image = tf.cast(image, dtype=dtype)
                 return {'inputs': image, 'label': example['label']}
             else: 
+                
                 image =  tf.image.resize_with_crop_or_pad(image, crop_size,crop_size) #dataset_utils.augment_random_crop_flip(
                     #image, crop_size,crop_size, num_channels,crop_padding=4, flip=False)
                 image = tf.cast(image, dtype=dtype)
-                if subset=="val":
+                if subset=="validation":
+                    example["label"] = tf.one_hot(example["label"], 17035)
                     return {'inputs': image, 'label': example['label']}
                 else:
                     return {'inputs': image}
@@ -212,7 +215,7 @@ def get_dataset(
     data_augmentations= dataset_configs.get('data_augmentations', None)
     num_channels= get_num_channels(bands)
     data_aug_train = functools.partial(get_augmentations,num_channels = num_channels, dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size,subset="train")
-    data_aug_val = functools.partial(get_augmentations,num_channels = num_channels, dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size,subset="val")
+    data_aug_val = functools.partial(get_augmentations,num_channels = num_channels, dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size,subset="validation")
     data_aug_test = functools.partial(get_augmentations,num_channels = num_channels, dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size,subset="test")
     #augmentation_params = dataset_configs.get('augmentation_params', None)
    # data_augmentations = functools(partial(get_augmentations,augmentation_params)
@@ -233,6 +236,7 @@ def get_dataset(
     
    
     def create_dataset_iterator(
+        
         subset: Text,
         batch_size_local: int,
         transform=None
@@ -273,18 +277,18 @@ def get_dataset(
     train_iter = map(shard_batches, train_iter)
 
     eval_iter, n_eval_examples = create_dataset_iterator(
-      'val', eval_batch_size, transform=data_aug_val)
+      'validation', eval_batch_size, transform=data_aug_val)
     eval_iter = map(shard_batches, eval_iter)
 
     test_iter, n_test_examples = create_dataset_iterator(
-      'test', eval_batch_size, transform=data_aug_test) #create_dataset_iterator(
+      'test', test_batch_size, transform=data_aug_test) #create_dataset_iterator(
       # test_split, test_batch_size) #, transform=data_aug)
     test_iter = map(shard_batches, test_iter)
 
 
     meta_data = {
       'num_classes': dataset_configs.num_classes,
-      'input_shape': (-1, crop_size, crop_size, 3),
+      'input_shape': (-1, crop_size, crop_size, num_channels),
       'num_train_examples': n_train_examples ,
       'num_eval_examples': n_eval_examples,
       'num_test_examples':
