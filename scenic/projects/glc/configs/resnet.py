@@ -32,6 +32,8 @@ def get_config():
       'test': 36421
     }
     
+    config.onehot_labels=True
+    
     config.bands = ["rgb", "near_ir"]
     config.num_classes = 17035
     config.crop_size=224
