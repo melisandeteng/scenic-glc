@@ -24,10 +24,8 @@ def get_num_channels(data):
     if "landcover" in data:
         counter += 1
     return(counter)
-    
-        
-    return(counter)
-def load_patch(
+
+def load_patch( 
     observation_id: Union[int, str],
     patches_path: Union[str, Path],
     *,
