@@ -85,6 +85,8 @@ def train_step(
     Updated state of training and computed metrics and some training logs.
   """
   training_logs = {}
+  print("=======================================================")
+  print(batch["inputs"].shape)
   new_rng, rng = jax.random.split(train_state.rng)
 
   if config.get('mixup') and config.mixup.alpha:
