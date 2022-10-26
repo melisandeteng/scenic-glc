@@ -233,6 +233,9 @@ def train(
   model = model_cls(config, dataset.meta_data)
 
   # Initialize model.
+  print("==========================================================")
+  print("INPUT SHAPE: ", dataset.meta_data['input_shape'])
+  print("==========================================================")
   rng, init_rng = jax.random.split(rng)
   (params, model_state, num_trainable_params,
    gflops) = train_utils.initialize_model(
