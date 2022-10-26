@@ -196,6 +196,7 @@ def get_dataset(
     shuffle_seed: Optional[int] = 0,
     num_shards:Optional[int]=1,
     rng: Optional[Rng] = None,
+    prefetch_buffer_size=2,
     dataset_configs: ml_collections.ConfigDict,
     dataset_service_address: Optional[str] = None) -> dataset_utils.Dataset:
     """Returns a generator for the dataset."""
@@ -220,7 +221,7 @@ def get_dataset(
     #augmentation_params = dataset_configs.get('augmentation_params', None)
    # data_augmentations = functools(partial(get_augmentations,augmentation_params)
 
-
+    onehot_labels = dataset_configs.get('onehot_labels', True)
   # For the test set, the actual batch size is
   # test_batch_size * num_test_clips.
     test_batch_size = dataset_configs.get('test_batch_size', eval_batch_size)
@@ -275,15 +276,18 @@ def get_dataset(
     train_iter, n_train_examples = create_dataset_iterator(
       'train', batch_size, transform=data_aug_train)
     train_iter = map(shard_batches, train_iter)
+    train_iter = jax_utils.prefetch_to_device(train_iter, prefetch_buffer_size)
 
     eval_iter, n_eval_examples = create_dataset_iterator(
       'validation', eval_batch_size, transform=data_aug_val)
     eval_iter = map(shard_batches, eval_iter)
+    eval_iter = jax_utils.prefetch_to_device(eval_iter, prefetch_buffer_size)
 
     test_iter, n_test_examples = create_dataset_iterator(
       'test', test_batch_size, transform=data_aug_test) #create_dataset_iterator(
       # test_split, test_batch_size) #, transform=data_aug)
     test_iter = map(shard_batches, test_iter)
+    test_iter = jax_utils.prefetch_to_device(test_iter, prefetch_buffer_size)
 
 
     meta_data = {
@@ -294,7 +298,7 @@ def get_dataset(
       'num_test_examples':
           n_test_examples ,
       'input_dtype': getattr(jnp, dtype_str),
-      'target_is_onehot': True,
+      'target_is_onehot': onehot_labels,
     }
     logging.info('Dataset metadata:\n%s', meta_data)
 
