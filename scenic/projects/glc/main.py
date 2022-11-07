@@ -28,21 +28,29 @@ from scenic.train_lib import trainers
 import scenic.projects.glc.data.glc_dataset as glc_data
 import os 
 import resource
+from ray.train._internal.utils import get_address_and_port
 low, high = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (high, high))
+#os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
+#address, port = get_address_and_port()
+#init_ip=address+":"+ str(port)
+#jax.distributed.initialize(init_ip, num_processes=2, process_id=0)
+#jax.distributed.initialize(init_ip, num_processes=2, process_id=1)
+devices = jax.local_devices()
 
-os.environ["XLA_FLAGS"]="--xla_gpu_cuda_data_dir=/cvmfs/ai.mila.quebec/apps/arch/common/cuda/11.2"
-FLAGS = flags.FLAGS
+print(devices)
+#os.environ["XLA_FLAGS"]="--xla_gpu_cuda_data_dir=/cvmfs/ai.mila.quebec/apps/arch/common/cuda/11.2"
+#FLAGS = flags.FLAGS
 
 
 def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
          writer: metric_writers.MetricWriter) -> None:
   """Main function for Scenic."""
-
+  #import pdb; pdb.set_trace()
   model_cls = models.get_model_cls(config.model_name)
   data_rng, rng = jax.random.split(rng)
   bands = config.bands
-
+  
   if config.checkpoint:
     # When restoring from a checkpoint, change the dataset seed to ensure that
     # the example order is new. With deterministic data, this ensures enough
@@ -60,6 +68,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
       dataset_configs=config,
     batch_size=config.batch_size,
     eval_batch_size=config.batch_size,
+    num_shards=4,
     dtype_str = 'float32',
     bands = bands)
 
