@@ -20,10 +20,10 @@ def get_config():
     config.dataset_configs = ml_collections.ConfigDict()
 
     config.base_dir = (
-      '/network/scratch/t/tengmeli/temp_glc/')
+      '/home/tengmeli/')
     config.tables = {
-      'train': 'train_images_new3.tfrecords',
-      'validation': 'val_images_new3.tfrecords',
+      'train': 'train_images.tfrecords',
+      'validation': 'val_images.tfrecords',
       'test': 'test_images_new.tfrecords'
     }
     config.examples_per_subset = {
