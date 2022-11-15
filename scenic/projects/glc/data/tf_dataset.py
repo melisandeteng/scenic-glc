@@ -47,11 +47,11 @@ def parse_tfr_element(element, bands="all", subset="train"):
     feature_alt = tf.expand_dims(tf.reshape(tf.io.decode_raw(content["altitude"], tf.uint16), shape=[256,256]), -1)
         
     features = {"rgb": (tf.cast(feature_rgb, tf.float32)-[106.9413, 114.8733, 104.5285])/ [51.0005, 44.8595, 43.2014],
-                "nir": (tf.cast(feature_nir, tf.float32)- 131.0458)/53.0884,
+                "near_ir": (tf.cast(feature_nir, tf.float32)- 131.0458)/53.0884,
                 "landcover": tf.cast(feature_landcover, tf.float32)/33.0, 
                 "altitude":(tf.cast(feature_alt, tf.float32)-298.1693)/459.3285}
     if bands==["all"]:
-        bands = ["rgb", "nir", "landcover", "altitude"]
+        bands = ["rgb", "near_ir", "landcover", "altitude"]
     features = [features[b] for b in bands]
     features = tf.concat(features, axis = -1)
     #features = tf.expand_dims(features, axis=0)
