@@ -258,7 +258,7 @@ def train(
     writer: metric_writers.MetricWriter,
 ) -> Tuple[train_utils.TrainState, Dict[str, Any], Dict[str, Any]]:
   """Main training loop lives in this function.
-
+  
   Given the model class and dataset, it prepares the items needed to run the
   training, including the TrainState.
 
@@ -278,6 +278,7 @@ def train(
     are dict of metrics (from the last evaluation and train metric logging
     respectively). These outputs are used for regression testing.
   """
+  import pdb; pdb.set_trace()
   lead_host = jax.process_index() == 0
   # Build the loss_fn, metrics, and flax_model.
   model = model_cls(config, dataset.meta_data)
@@ -324,10 +325,12 @@ def train(
   if (start_step == 0  # Which means "no" checkpoint is restored!
       and config.get('init_from') is not None):
     restored_model_cfg = config.init_from.get('model_config')
+    
     init_checkpoint_path = config.init_from.get('checkpoint_path')
     if init_checkpoint_path is not None:
       restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           init_checkpoint_path, train_state, assert_exist=True)
+      print(train_state.params.keys(), restored_train_state.params.keys())
       # Load params from the init_model.
       train_state = model.init_from_train_state(  # pytype: disable=attribute-error
           train_state, restored_train_state, restored_model_cfg)
@@ -441,7 +444,7 @@ def train(
     step0_log = {'num_trainable_params': num_trainable_params}
     if gflops:
       step0_log['gflops'] = gflops
-    writer.write_scalars(1, step0_log)
+    writer.write_scalars(step = 1, scalars = step0_log)
 
   write_note(f'First step compilations...\n{chrono.note}')
   for step in range(start_step + 1, total_steps + 1):
