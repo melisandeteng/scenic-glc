@@ -278,7 +278,7 @@ def train(
     are dict of metrics (from the last evaluation and train metric logging
     respectively). These outputs are used for regression testing.
   """
-  import pdb; pdb.set_trace()
+  
   lead_host = jax.process_index() == 0
   # Build the loss_fn, metrics, and flax_model.
   model = model_cls(config, dataset.meta_data)
@@ -307,7 +307,7 @@ def train(
 
   # Create chrono class to track and store training statistics and metadata:
   chrono = train_utils.Chrono()
-
+  
   train_state = train_utils.TrainState(
       global_step=0,
       opt_state=opt_state,
@@ -322,6 +322,7 @@ def train(
         workdir, train_state)
   chrono.load(train_state.metadata['chrono'])
   del train_state.metadata['chrono']
+  #import pdb; pdb.set_trace()
   if (start_step == 0  # Which means "no" checkpoint is restored!
       and config.get('init_from') is not None):
     restored_model_cfg = config.init_from.get('model_config')
@@ -330,20 +331,19 @@ def train(
     if init_checkpoint_path is not None:
       restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           init_checkpoint_path, train_state, assert_exist=True)
+      print("===============================================")
       print(train_state.params.keys(), restored_train_state.params.keys())
-      # Load params from the init_model.
-      train_state = model.init_from_train_state(  # pytype: disable=attribute-error
-          train_state, restored_train_state, restored_model_cfg)
-      del restored_train_state
+      # Load params from the init_modeeplica
 
   # Replicate the optimzier, state, and rng.
   train_state = jax_utils.replicate(train_state)
+
   del params  # Do not keep a copy of the initial params.
 
   # Calculate the total number of training steps.
   total_steps, steps_per_epoch = train_utils.get_num_training_steps(
       config, dataset.meta_data)
-
+  import pdb; pdb.set_trace()
   train_step_pmapped = jax.pmap(
       functools.partial(
           train_step,
