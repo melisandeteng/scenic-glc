@@ -6,7 +6,7 @@ r"""Default configs for ResNet on ImageNet.
 
 import ml_collections
 
-GLC_TRAIN_SIZE = 1587395
+GLC_TRAIN_SIZE = 40080# 1587395
 
 
 def get_config():
@@ -20,14 +20,14 @@ def get_config():
     config.dataset_configs = ml_collections.ConfigDict()
 
     config.base_dir = (
-      '/network/scratch/t/tengmeli/temp_glc/')
+      '/mnt/disks/persist/')
     config.tables = {
-      'train': 'train_images_new3.tfrecords',
-      'validation': 'val_images_new3.tfrecords',
-      'test': 'test_images_new.tfrecords'
+      'train': 'val_image.tfrecords',
+      'validation': 'val_image.tfrecords',
+      'test': 'test_image.tfrecords'
     }
     config.examples_per_subset = {
-      'train': 1587395,
+      'train': 40080,
       'validation': 40080,
       'test': 36421
     }
@@ -67,7 +67,7 @@ def get_config():
     config.lr_configs.warmup_steps = 7 * steps_per_epoch
     config.lr_configs.steps_per_cycle = total_steps
     config.lr_configs.base_learning_rate = base_lr
-    config.init_from = {'checkpoint_path': "/network/scratch/t/tengmeli/temp_glc/checkpoints/", "model_config":"/home/mila/t/tengmeli/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_resnet_config.py"}
+    config.init_from = {'checkpoint_path': "/home/tengmeli/scenic-glc/scenic/projects/glc/checkpoints", "model_config":"/home/tengmeli/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_resnet_config.py"}
     # Logging.
     config.write_summary = True
     config.xprof = True  # Profile using xprof.

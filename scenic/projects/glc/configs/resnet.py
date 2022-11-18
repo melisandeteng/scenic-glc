@@ -6,7 +6,7 @@ r"""Default configs for ResNet on ImageNet.
 
 import ml_collections
 
-GLC_TRAIN_SIZE = 1587395
+GLC_TRAIN_SIZE = 40080 #1587395
 
 
 def get_config():
@@ -20,14 +20,15 @@ def get_config():
     config.dataset_configs = ml_collections.ConfigDict()
 
     config.base_dir = (
-      '/home/tengmeli/')
+            "/mnt/disks/persist/" )
+            #'/home/tengmeli/')
     config.tables = {
-      'train': 'train_images_new3.tfrecords',
-      'validation': 'val_images_new3.tfrecords',
-      'test': 'test_images_new.tfrecords'
+      'train': 'val_image.tfrecords',
+      'validation': 'val_image.tfrecords',
+      'test': 'test_image.tfrecords'
     }
     config.examples_per_subset = {
-      'train': 1587395,
+      'train': 40080, #1587395,
       'validation': 40080,
       'test': 36421
     }
