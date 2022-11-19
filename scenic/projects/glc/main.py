@@ -28,7 +28,7 @@ from scenic.train_lib import trainers
 import scenic.projects.glc.data.glc_dataset as glc_data
 import os 
 import resource
-from ray.train._internal.utils import get_address_and_port
+#from ray.train._internal.utils import get_address_and_port
 low, high = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (high, high))
 #os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
@@ -68,7 +68,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
       dataset_configs=config,
     batch_size=config.batch_size,
     eval_batch_size=config.batch_size,
-    num_shards=4,
+    num_shards=8,
     dtype_str = 'float32',
     bands = bands)
 
