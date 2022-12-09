@@ -35,7 +35,7 @@ from scenic.model_lib.base_models import base_model
 from scenic.train_lib import lr_schedules
 from scenic.train_lib import optimizers
 from scenic.train_lib import train_utils
-
+import comet_ml
 # Aliases for custom types:
 Batch = Dict[str, jnp.ndarray]
 MetricFn = Callable[[jnp.ndarray, Dict[str, jnp.ndarray]],
@@ -53,7 +53,8 @@ def train_step(
     lr_fn: LrFn,
     metrics_fn: MetricFn,
     config: ml_collections.ConfigDict,
-    debug: Optional[bool] = False
+    debug: Optional[bool] = False,
+    comet_exp: None
 ) -> Tuple[train_utils.TrainState, Dict[str, Tuple[float, int]], Dict[str,
                                                                       Any]]:
   """Runs a single step of training.
@@ -123,7 +124,8 @@ def train_step(
   compute_gradient_fn = jax.value_and_grad(training_loss_fn, has_aux=True)
   (train_cost, (new_model_state,
                 logits)), grad = compute_gradient_fn(train_state.params)
-
+#  if comet_exp is not None:    
+#    comet_exp.log_metric("train_loss", train_cost, step=train_state.global_step, include_context=True)
   del train_cost
   # Re-use same axis_name as in the call to `pmap(...train_step...)` below.
   grad = jax.lax.pmean(grad, axis_name='batch')
@@ -152,6 +154,7 @@ def train_step(
       params=new_params,
       model_state=new_model_state,
       rng=new_rng)
+  
 
   return new_train_state, metrics, training_logs
 
@@ -162,7 +165,8 @@ def eval_step(
     *,
     flax_model: nn.Module,
     metrics_fn: MetricFn,
-    debug: Optional[bool] = False
+    debug: Optional[bool] = False,
+    comet_exp=None
 ) -> Tuple[Dict[str, Tuple[float, int]], jnp.ndarray]:
   """Runs a single step of training.
 
@@ -198,6 +202,8 @@ def eval_step(
   logits = flax_model.apply(
       variables, batch['inputs'], train=False, mutable=False, debug=debug)
   metrics = metrics_fn(logits, batch)
+#  if comet_exp is not None:    
+#    comet_exp.log_metric("eval_loss", metrics, step=train_state.global_step, include_context=True)
   return metrics, logits
 
 
@@ -209,6 +215,7 @@ def train(
     dataset: dataset_utils.Dataset,
     workdir: str,
     writer: metric_writers.MetricWriter,
+    comet_exp= None
 ) -> Tuple[train_utils.TrainState, Dict[str, Any], Dict[str, Any]]:
   """Main training loop lives in this function.
 
@@ -237,9 +244,6 @@ def train(
   model = model_cls(config, dataset.meta_data)
 
   # Initialize model.
-  print("==========================================================")
-  print("INPUT SHAPE: ", dataset.meta_data['input_shape'])
-  print("==========================================================")
   rng, init_rng = jax.random.split(rng)
   (params, model_state, num_trainable_params,
    gflops) = train_utils.initialize_model(
@@ -294,7 +298,8 @@ def train(
           lr_fn=lr_fn,
           metrics_fn=model.get_metrics_fn('train'),
           config=config,
-          debug=config.debug_train),
+          debug=config.debug_train,
+          comet_exp=comet_exp),
       axis_name='batch',
       # We can donate both buffers of train_state and train_batch.
       donate_argnums=(0, 1),
@@ -304,7 +309,8 @@ def train(
           eval_step,
           flax_model=model.flax_model,
           metrics_fn=model.get_metrics_fn('validation'),
-          debug=config.debug_eval),
+          debug=config.debug_eval,
+          comet_exp=comet_exp),
       axis_name='batch',
       # We can donate the eval_batch's buffer.
       donate_argnums=(1,),
@@ -363,6 +369,7 @@ def train(
     for h in hooks:
       h(step)
     # Below are once-in-a-while ops -> pause.
+    #import pdb; pdb.set_trace()
     ###################### LOG TRAIN SUMMARY ########################
     if ((step % log_summary_steps == 1) or (step == total_steps) or
         (lead_host and chrono.warmup)):
@@ -381,6 +388,10 @@ def train(
           extra_training_logs=jax.tree_util.tree_map(jax.device_get,
                                                      extra_training_logs),
           writer=writer)
+      if comet_exp is not None:
+            comet_exp.log_metric('train_loss_', train_summary['loss'], step=step)
+            comet_exp.log_metric('train_accuracy', train_summary['accuracy'], step=step)
+            comet_exp.log_metric('train_topk', train_summary['topk'], step=step)
       # Reset metric accumulation for next evaluation cycle.
       train_metrics, extra_training_logs = [], []
       chrono.resume()
@@ -397,6 +408,10 @@ def train(
           eval_metrics.append(train_utils.unreplicate_and_get(e_metrics))
         eval_summary = train_utils.log_eval_summary(
             step=step, eval_metrics=eval_metrics, writer=writer)
+        if comet_exp is not None:
+            comet_exp.log_metric('eval_loss_', eval_summary['loss'], step=step)
+            comet_exp.log_metric('eval_accuracy', eval_summary['accuracy'], step=step)
+            comet_exp.log_metric('eval_topk', eval_summary['topk'], step=step)
       writer.flush()
       del eval_metrics
       chrono.resume()

@@ -20,7 +20,7 @@ def get_config():
     config.dataset_configs = ml_collections.ConfigDict()
 
     config.base_dir = (
-      '/home/tengmeli/')
+      '/network/scratch/t/tengmeli/temp_glc/')
     config.tables = {
       'train': 'train_images_new3.tfrecords',
       'validation': 'val_images_new3.tfrecords',
@@ -31,8 +31,12 @@ def get_config():
       'validation': 40080,
       'test': 36421
     }
+    
+    config.no_comet = False
+    config.comet= {"tags":["test_run"]}
+    
     config.onehot_labels= False   
-    config.bands = ["rgb"] #, "near_ir"]
+    config.bands = ["rgb", "near_ir"] #, "near_ir"]
     config.num_classes = 17035
     config.crop_size=224
     config.data_augmentations = ["glc_default"]
@@ -51,7 +55,7 @@ def get_config():
     config.max_grad_norm = None
     config.label_smoothing = None
     config.num_training_epochs = 90
-    config.batch_size = 64 #32 #8192
+    config.batch_size = 8#64 #32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     

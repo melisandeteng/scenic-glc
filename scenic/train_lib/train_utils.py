@@ -500,7 +500,8 @@ def sync_model_state_across_replicas(train_state: TrainState) -> TrainState:
 def save_checkpoint(workdir: str,
                     train_state: TrainState,
                     max_to_keep: int = 3,
-                    overwrite: bool = False):
+                    overwrite: bool = False,
+                    upload_to_cloud=None):
   """Saves a checkpoint.
 
   Args:
@@ -519,6 +520,14 @@ def save_checkpoint(workdir: str,
         int(checkpoint_state.global_step),
         overwrite=overwrite,
         keep=max_to_keep)
+    if upload_to_cloud is not None: 
+        checkpoints.save_checkpoint_multiprocess(
+            upload_to_cloud,
+            checkpoint_state,
+            int(checkpoint_state.global_step),
+            overwrite=overwrite,
+        keep=max_to_keep)
+            
 
 
 SIGNED_FLOAT_RE = re.compile(r'([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)')
