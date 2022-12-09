@@ -32,6 +32,7 @@ from comet_ml import ExistingExperiment, Experiment
 from time import sleep
 import resource
 from pathlib import Path
+
 #from ray.train._internal.utils import get_address_and_port
 low, high = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (high, high))
@@ -106,7 +107,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
       dataset_configs=config,
     batch_size=config.batch_size,
     eval_batch_size=config.batch_size,
-    num_shards=1,
+    num_shards=8,
     dtype_str = 'float32',
     bands = bands)
 
