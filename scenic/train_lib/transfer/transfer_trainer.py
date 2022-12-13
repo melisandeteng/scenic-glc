@@ -363,9 +363,9 @@ def train(
     total_steps, steps_per_epoch = train_utils.get_num_training_steps(
         config, dataset.meta_data
     )
-    import pdb
+    #import pdb
 
-    pdb.set_trace()
+    #pdb.set_trace()
     train_step_pmapped = jax.pmap(
         functools.partial(
             train_step,
@@ -387,11 +387,12 @@ def train(
             flax_model=model.flax_model,
             metrics_fn=model.get_metrics_fn("validation"),
             debug=config.debug_eval,
+            comet_exp=comet_exp,
         ),
         axis_name="batch",
         # We can donate the eval_batch's buffer.
         donate_argnums=(1,),
-        comet_exp=comet_exp,
+        
     )
     if "fewshot" in config:
         representation_fn_fewshot = functools.partial(
