@@ -26,7 +26,7 @@ from scenic.projects.baselines import resnet
 from scenic.projects.baselines import simple_cnn
 from scenic.projects.baselines import unet
 from scenic.projects.baselines import vit
-from scenic.projects.baselines import vit_adapter
+#from scenic.projects.baselines import vit_adapter
 
 
 ALL_MODELS = {}
@@ -46,12 +46,12 @@ CLASSIFICATION_MODELS = {
         bit_resnet.BitResNetClassificationModel,
     'bit_resnet_multilabel_classification':
         bit_resnet.BitResNetMultiLabelClassificationModel,
-    'vit_multilabel_classification':
-        vit.ViTMultiLabelClassificationModel,
+#    'vit_multilabel_classification':
+#        vit.ViTMultiLabelClassificationModel,
     'hybrid_vit_multilabel_classification':
         hybrid_vit.HybridViTMultiLabelClassificationModel,
-    'vit_adapter_multilabel_classification':
-        vit_adapter.ViTAdapterClassificationModel,
+#    'vit_adapter_multilabel_classification':
+#        vit_adapter.ViTAdapterClassificationModel,
     'mixer_multilabel_classification':
         mixer.MixerMultiLabelClassificationModel,
 }

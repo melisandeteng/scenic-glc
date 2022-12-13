@@ -110,7 +110,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
     num_shards=8,
     dtype_str = 'float32',
     bands = bands)
-
+  #import pdb; pdb.set_trace()
   trainers.get_trainer(config.trainer_name)(
       rng=rng,
       config=config,

@@ -6,7 +6,7 @@ r"""Default configs for ResNet on ImageNet.
 
 import ml_collections
 
-GLC_TRAIN_SIZE = 40080 #1587395
+GLC_TRAIN_SIZE = 1587395
 
 
 def get_config():
@@ -24,19 +24,19 @@ def get_config():
             "/mnt/disks/persist/" )
             #'/home/tengmeli/')
     config.tables = {
-      'train': 'val_image.tfrecords',
+      'train': 'train_image.tfrecords',
       'validation': 'val_image.tfrecords',
       'test': 'test_image.tfrecords'
     }
     config.examples_per_subset = {
-      'train': 40080, #1587395,
+      'train': 1587395,
       'validation': 40080,
       'test': 36421
     }
     
     config.no_comet = False
     config.comet= {"tags":["test_run"]}
-    
+ 
     config.onehot_labels= False   
     config.bands = ["rgb", "near_ir"] #, "near_ir"]
     config.num_classes = 17035
@@ -57,7 +57,7 @@ def get_config():
     config.max_grad_norm = None
     config.label_smoothing = None
     config.num_training_epochs = 90
-    config.batch_size = 8#64 #32 #8192
+    config.batch_size = 64 #32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
