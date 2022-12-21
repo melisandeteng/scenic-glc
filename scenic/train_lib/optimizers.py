@@ -115,14 +115,22 @@ def get_optimizer(
   # because all remaining fields in the config are given to the optimizer.
   freeze_mask = None
   unfreeze_mask = None
+  
   if 'freeze_params_reg_exp' in config:
     if params is None:
       raise ValueError('params must be given to obtain frozen parameters.')
     freeze_mask = tree_mask(params, config.freeze_params_reg_exp)
     unfreeze_mask = jax.tree_util.tree_map(lambda x: not x, freeze_mask)
-    del config.freeze_params_reg_exp
 
     num_params_unfrozen = jax.tree_util.tree_reduce(operator.add, unfreeze_mask)
+    #num_params_frozen = jax.tree_util.tree_reduce(operator.add, freeze_mask)
+    param_count = sum(x.size for x in jax.tree_leaves(params))
+    print("total params", param_count)
+    vals = tree_map_with_names_num_params(params, config.freeze_params_reg_exp)
+    print("Frozen params", vals)
+    print("Trainable params", param_count-vals)
+    del config.freeze_params_reg_exp
+    
     if not num_params_unfrozen:
       raise ValueError('freeze_params_reg_exp matched all parameters in '
                        'the model, which prevents any training from happening.')
@@ -325,3 +333,36 @@ def tree_map_with_names_values(
       f(v, name) if match_name_fn(name) else v for name, v in names_and_vals
   ]
   return tree_def.unflatten(vals)
+
+
+
+
+def tree_map_with_names_num_params(
+    param_tree,
+    reg_exp) -> PyTree:
+  #  match_name_fn: Callable[[str], bool] = lambda name: True) -> PyTree:
+  """Like tree_map_with_names but with `f` having access to values *and* names.
+
+  Args:
+    f: The function to be applied to each parameter in `param_tree`. Takes value
+      and name as arguments.
+    param_tree: The tree of parameters `f` should be applied to.
+    match_name_fn: This function is called with each tree leaf's path name,
+      which has a path-like format ("a/b/c"), and decides whether `f` should be
+      applied to that leaf or the leaf should be kept as-is.
+
+  Returns:
+    A tree identical in structure to `param_tree` but with the leaves the
+    result of calling `f` on them in the cases where `match_name_fn` returns
+    True for that leaf's path name.
+  """
+  pattern = re.compile(reg_exp)
+  def match_var_name(name):
+    if pattern.search(name):
+      return True
+    return False
+  
+  names_and_vals, tree_def = tree_flatten_with_names(param_tree)
+
+  vals = [v.flatten().size if match_var_name(name) else 0 for name, v  in names_and_vals]
+  return sum(vals)
