@@ -79,6 +79,7 @@ class ResidualBlock(nn.Module):
 
     if self.bottleneck:
       y = conv(nout, (1, 1), name='conv3')(y)
+      
     else:
       y = conv(nout, (3, 3), padding=[(1, 1), (1, 1)], name='conv3')(y)
     if add_bn: 
@@ -165,12 +166,13 @@ class ResNet(nn.Module):
     for i, block_size in enumerate(block_sizes):
       strides_adapter = (2, 2) if i > 0 else (1,1)
       
-      y =  BottleneckAdapterParallel(
-            adapter_dim=self.adapter_dim,
-            hidden_dim = x.shape[-1] if i==0 else x.shape[-1]*2, 
-            strides = strides_adapter, 
-            )(x)  # MOD>
-      
+     # y =  BottleneckAdapterParallel(
+     #       adapter_dim=self.adapter_dim,
+     #       hidden_dim = x.shape[-1] if i==0 else x.shape[-1]*2, 
+     #       strides = strides_adapter, 
+     #       )(x)  # MOD>
+      x_copy = x.copy()
+      print(x.shape[-1] if i==0 else x.shape[-1]*2)
         #name=f'residual_adapter_{i}',
       for j in range(block_size):
           strides = (2, 2) if i > 0 and j == 0 else (1, 1)
@@ -181,7 +183,15 @@ class ResNet(nn.Module):
          #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
           #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
       representations[f'stage_{i + 1}'] = x
+      print(x.shape)
       
+      y =  BottleneckAdapterParallel(
+            adapter_dim=self.adapter_dim,
+            hidden_dim = x.shape[-1], # if i==0 else x.shape[-1]*2, 
+            strides = strides_adapter, 
+            )(x_copy)  
+      print(y.shape)
+      print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
       x = x+y
       x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
       x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(residual + x))
@@ -214,7 +224,7 @@ BLOCK_SIZE_OPTIONS = {
     18: ([2, 2, 2, 2], False),
     26: ([2, 2, 2, 2], True),
     34: ([3, 4, 6, 3], False),
-    50: ([3, 4, 6, 3],False), #True),
+    50: ([3, 4, 6, 3], True), #False), 
     101: ([3, 4, 23, 3], True),
     152: ([3, 8, 36, 3], True),
     200: ([3, 24, 36, 3], True)

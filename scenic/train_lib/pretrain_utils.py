@@ -166,7 +166,7 @@ def restore_pretrained_checkpoint(
     raise ValueError('No checkpoint for the pretrained model is found in: '
                      f'{checkpoint_path}')
   if 'params' in restored_train_state:
-    # restored_train_state was trained using optax
+    print("restored_train_state was trained using optax")
     restored_params = flax.core.freeze(restored_train_state['params'])
   else:
     # restored_train_state was trained using flax.optim. Note that this does
@@ -176,7 +176,7 @@ def restore_pretrained_checkpoint(
       restored_params = restored_params['params']
       restored_params = dict(checkpoints.convert_pre_linen(restored_params))
     restored_params = flax.core.freeze(restored_params)
-
+  print("restoring model state")
   restored_model_state = flax.core.freeze(restored_train_state['model_state'])
 
   if not train_state:

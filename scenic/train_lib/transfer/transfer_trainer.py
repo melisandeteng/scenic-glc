@@ -343,6 +343,7 @@ def train(
         start_step == 0  # Which means "no" checkpoint is restored!
         and config.get("init_from") is not None
     ):
+        print("Restoring pretrained model")
         restored_model_cfg = config.init_from.get("model_config")
 
         init_checkpoint_path = config.init_from.get("checkpoint_path")
