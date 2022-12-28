@@ -418,7 +418,7 @@ def train(
             # Reset metric accumulation for next evaluation cycle.
             train_metrics, extra_training_logs = [], []
             chrono.resume()
-        ################### EVALUATION #######################
+        """################### EVALUATION #######################
         if (step % log_eval_steps == 1) or (step == total_steps):
             chrono.pause(wait_for=(train_state.params))
             with report_progress.timed("eval"):
@@ -441,6 +441,7 @@ def train(
             writer.flush()
             del eval_metrics
             chrono.resume()
+        """
         ##################### CHECKPOINTING ###################
         if (
             (step % checkpoint_steps == 0 and step > 0) or (step == total_steps)

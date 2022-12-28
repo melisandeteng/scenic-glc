@@ -60,6 +60,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
          writer: metric_writers.MetricWriter) -> None:
   """Main function for Scenic."""
   exp=None
+  config.no_comet = True
   if not config.no_comet:
         # ----------------------------------
         # -----  Set Comet Experiment  -----
@@ -96,6 +97,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
     # randomization and in the future with deterministic data + random access,
     # we can feed the global step to the dataset loader to always continue
     # reading the rest of the data if we resume a job that was interrupted.
+    
     checkpoint_path = checkpoints.latest_checkpoint(workdir)
     logging.info('CHECKPOINT PATH: %s', checkpoint_path)
     if checkpoint_path is not None:

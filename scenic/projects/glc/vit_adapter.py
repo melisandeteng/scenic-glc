@@ -170,7 +170,7 @@ class Encoder(nn.Module):
 
     # Input Encoder.
     for lyr in range(self.num_layers):
-      strides_adapter = (2, 2) #if lyr > 0 else (1,1)
+      strides_adapter = (1,1) #(2, 2) #if lyr > 0 else (1,1)
       x_copy = x.copy()
       x = Encoder1DBlock(
           mlp_dim=self.mlp_dim,
@@ -187,8 +187,10 @@ class Encoder(nn.Module):
             hidden_dim = x.shape[-1], # if i==0 else x.shape[-1]*2, 
             strides = strides_adapter, 
             )(x_copy)  
-      
-      print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
+      #print("input", x_copy.shape)
+      #print("adapter ", y.shape)
+      #print("x ", x.shape)
+      #print("hidden_dim", x.shape[-1])# if i==0 else x.shape[-1]*2)
       x = x+y
     encoded = nn.LayerNorm(name='encoder_norm')(x)
     return encoded
@@ -296,6 +298,8 @@ class ViTClassificationAdapterModel(ClassificationModel):
                        'in the current implmentation, so only '
                        '`float32` is supported for now.')
     return ViT(
+        adapter_layers= self.config.adapter_layers,
+        adapter_dim=self.config.adapter_dim,
         num_classes=self.dataset_meta_data['num_classes'],
         mlp_dim=self.config.model.mlp_dim,
         num_layers=self.config.model.num_layers,
