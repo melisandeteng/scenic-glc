@@ -304,7 +304,7 @@ def get_dataset(
 
     meta_data = {
         'num_classes': dataset_configs.num_classes,
-        'input_shape': (-1, crop_size, crop_size, num_channels),
+        'input_shape': (128, crop_size, crop_size, num_channels),
         'num_train_examples': n_train_examples,
         'num_eval_examples': n_eval_examples,
         'num_test_examples':

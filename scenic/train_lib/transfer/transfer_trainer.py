@@ -341,7 +341,7 @@ def train(
     chrono.load(train_state.metadata["chrono"])
     del train_state.metadata["chrono"]
     """
-   # import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
     print("restore pretrained model")
     if (
         start_step == 0  # Which means "no" checkpoint is restored!
@@ -353,7 +353,7 @@ def train(
         init_checkpoint_path = config.init_from.get("checkpoint_path")
         if init_checkpoint_path is not None:
             restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
-                init_checkpoint_path, train_state, assert_exist=True
+                init_checkpoint_path, train_state, assert_exist=False
             )
             print("===============================================")
             print(train_state.params.keys(), restored_train_state.params.keys())
@@ -539,7 +539,7 @@ def train(
 
             chrono.resume()
         ################### EVALUATION #######################
-        if (step % log_eval_steps == 1) or (step == total_steps):
+        if (step % log_eval_steps == 1 and step != 1) or (step == total_steps):
             chrono.pause(wait_for=(train_state.params))
             with report_progress.timed("eval"):
                 # Sync model state across replicas.

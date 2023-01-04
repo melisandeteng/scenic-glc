@@ -96,6 +96,7 @@ def initialize_model(
   """
   batch_size = (config.batch_size //
                 jax.device_count()) if config.get('batch_size') else None
+  print("BATCH SIZE", batch_size)
   dummy_input = []
   for spec in input_spec:
     if spec is not None:
