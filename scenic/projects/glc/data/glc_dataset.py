@@ -132,21 +132,28 @@ def glc_load_split(dsfactory,
     dataset = dataset.map(
         (lambda x: tf_dataset.parse_tfr_element(x, bands, subset)))
 
-    dataset = dataset.map(lambda x:
-                          transform(x))
+    
 
     num_examples = a.num_examples
-    if subset == "train":
-        dataset = dataset.repeat()
-        dataset = dataset.shuffle(16 * batch_size, seed=shuffle_seed)
-    else:
-        dataset = dataset.repeat()
     options = tf.data.Options()
     options.threading.private_threadpool_size = 48
     dataset = dataset.with_options(options)
-    dataset = dataset.cache()
-    dataset = dataset.batch(batch_size, drop_remainder=subset == "train")
-
+    
+    #dataset = dataset.cache()
+    if subset == "train":
+        dataset = dataset.repeat()
+        dataset = dataset.map(lambda x:
+                          transform(x))
+        dataset = dataset.shuffle(16 * batch_size, seed=shuffle_seed)
+        dataset = dataset.batch(batch_size, drop_remainder=subset == "train")
+    
+    else:
+        dataset = dataset.map(lambda x:
+                          transform(x))
+        dataset = dataset.batch(batch_size, drop_remainder=False)
+        dataset = dataset.repeat()
+    
+    
     return dataset, num_examples
 
 
@@ -171,7 +178,7 @@ def get_augmentations(example, onehot_label, num_channels=3, dtype=tf.float32, d
             if subset == "train":
                 #example["label"] = tf.one_hot(example["label"], 17035)
                 image = dataset_utils.augment_random_crop_flip(
-                    image, crop_size, crop_size, num_channels, crop_padding=4, flip=True)
+                    image, crop_size, crop_size, num_channels, crop_padding=0, flip=True)
                 image = tf.cast(image, dtype=dtype)
                 return {'inputs': image, 'label': label}
 		#abel = tf.one_hot(exanple['label']) if onehot_labels else label
@@ -179,9 +186,9 @@ def get_augmentations(example, onehot_label, num_channels=3, dtype=tf.float32, d
             else:
                 #print("-----IMAGE VALIDATION--------")
                 #print(tf.shape(example["inputs"]))
-                image = tf.image.resize_with_crop_or_pad(
-                    image, crop_size, crop_size)
-                #image = dataset_utils.augment_random_crop_flip(image, crop_size,crop_size, num_channels,crop_padding=4, flip=False)
+                #image = tf.image.resize_with_crop_or_pad(
+                #    image, crop_size, crop_size)
+                image = dataset_utils.augment_random_crop_flip(image, crop_size,crop_size, num_channels,crop_padding=0, flip=False)
                 image = tf.cast(image, dtype=dtype)
                 if subset == "validation":
                     #example["label"] = tf.one_hot(example["label"], 17035)
@@ -304,7 +311,7 @@ def get_dataset(
 
     meta_data = {
         'num_classes': dataset_configs.num_classes,
-        'input_shape': (128, crop_size, crop_size, num_channels),
+        'input_shape': (-1, crop_size, crop_size, num_channels),
         'num_train_examples': n_train_examples,
         'num_eval_examples': n_eval_examples,
         'num_test_examples':
