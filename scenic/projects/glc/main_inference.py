@@ -21,7 +21,7 @@ from flax.training import checkpoints
 import jax
 import jax.numpy as jnp
 import ml_collections
-from scenic import app
+from scenic import app_eval
 from scenic.model_lib import models
 from scenic.train_lib import train_utils
 from scenic.train_lib import trainers
@@ -57,7 +57,7 @@ print(devices)
 #jax.distributed.initialize()
     
 def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
-         writer: metric_writers.MetricWriter, eval_mode = False) -> None:
+        writer: metric_writers.MetricWriter, eval_mode: str) -> None:
   """Main function for Scenic."""
   exp=None
   config.no_comet = True
@@ -134,7 +134,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
 
 
 if __name__ == '__main__':
-  app.run(main=main)
+  app_eval.run(main=main)
 
 
 

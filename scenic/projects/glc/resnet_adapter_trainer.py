@@ -183,15 +183,15 @@ class ResNet(nn.Module):
          #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
           #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
       representations[f'stage_{i + 1}'] = x
-      print(x.shape)
+      #print(x.shape)
       
       y =  BottleneckAdapterParallel(
             adapter_dim=self.adapter_dim,
             hidden_dim = x.shape[-1], # if i==0 else x.shape[-1]*2, 
             strides = strides_adapter, 
             )(x_copy)  
-      print(y.shape)
-      print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
+      #print(y.shape)
+      #print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
       x = x+y
       x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
       x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(residual + x))
@@ -523,14 +523,3 @@ def train_step(
 
     return new_train_state, metrics, training_logs
 
-
-"""
-NOT TRAINABLE TASK
-initialize with pretrainedmodel the backbone
-Convert params to components
-freeze components, unfreeze adapters
-train_locks
-
-train state params fixed params, trainable params 
-
-"""

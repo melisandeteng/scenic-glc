@@ -523,7 +523,7 @@ def infer(*,
     )
     train_state, start_step = train_utils.restore_checkpoint(workdir, train_state)
     print("restoring checkpoint of step ", start_step)
-    
+    train_state = jax_utils.replicate(train_state)
     eval_step_pmapped = jax.pmap(
         functools.partial(
             eval_step,
@@ -536,12 +536,17 @@ def infer(*,
         # We can donate the eval_batch's buffer.
         donate_argnums=(1,),
     )
-    log_eval_steps = config.get("log_eval_steps") or steps_per_epoch
-    if not log_eval_steps:
-        raise ValueError("'log_eval_steps' should be specified in the config.")
-    checkpoint_steps = config.get("checkpoint_steps") or log_eval_steps
-    log_summary_steps = config.get("log_summary_steps") or log_eval_steps
-    
+    #log_eval_steps = config.get("log_eval_steps") or steps_per_epoch
+    #if not log_eval_steps:
+    #    raise ValueError("'log_eval_steps' should be specified in the config.")
+    #checkpoint_steps = config.get("checkpoint_steps") or log_eval_steps
+    #log_summary_steps = config.get("log_summary_steps") or log_eval_steps
+    # Ceil rounding such that we include the last incomplete batch.
+    eval_batch_size = config.get("eval_batch_size", config.batch_size)
+    total_eval_steps = int(
+                            np.ceil(dataset.meta_data["num_eval_examples"] / eval_batch_size)
+                                )
+    steps_per_eval = config.get("steps_per_eval") or total_eval_steps
     eval_metrics = []
     train_state = train_utils.sync_model_state_across_replicas(train_state)
     for _ in range(steps_per_eval):
@@ -549,6 +554,22 @@ def infer(*,
         e_metrics, _ = eval_step_pmapped(train_state, eval_batch)
         eval_metrics.append(train_utils.unreplicate_and_get(e_metrics))
     eval_summary = train_utils.log_eval_summary(
-        step=step, eval_metrics=eval_metrics, writer=writer
+        step=start_step, eval_metrics=eval_metrics, writer=writer
     )
+    print("EVAL PERFORMANCE")
     print(eval_summary)
+    train_batch_size = config.get("train_batch_size", config.batch_size)
+    total_train_steps = int(
+                             np.ceil(dataset.meta_data["num_train_examples"] / train_batch_size)
+                                                                            )
+    steps_per_eval = config.get("steps_per_eval") or total_train_steps
+    #train_state = train_utils.sync_model_state_across_replicas(train_state)
+    for _ in range(steps_per_eval):
+        eval_batch = next(dataset.train_iter)
+        e_metrics, _ = eval_step_pmapped(train_state, eval_batch)
+        eval_metrics.append(train_utils.unreplicate_and_get(e_metrics))
+        eval_summary = train_utils.log_eval_summary(
+                step=start_step, eval_metrics=eval_metrics, writer=writer)
+    print("TRAIN PERFORMANCE")
+    print(eval_summary)
+

@@ -39,6 +39,7 @@ from scenic.train_lib import train_utils
 from scenic.train_lib.transfer import fewshot_utils
 from scenic.train_lib.transfer import linear_probe_utils
 import comet_ml
+from flax.training import checkpoints
 
 
 # Aliases for custom types:
@@ -351,6 +352,7 @@ def train(
         restored_model_cfg = config.init_from.get("model_config")
 
         init_checkpoint_path = config.init_from.get("checkpoint_path")
+        """
         if init_checkpoint_path is not None:
             restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
                 init_checkpoint_path, train_state, assert_exist=False
@@ -358,9 +360,38 @@ def train(
             
             print(train_state.params.keys(), restored_train_state.params.keys())
             # Load params from the init_model.
+            print('init from train state')
             train_state = model.init_from_train_state(  # pytype: disable=attribute-error
           train_state, restored_train_state, restored_model_cfg)
-    # Replicate the optimzier, state, and rng.
+        """
+        restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
+        if 'params' in restored_train_state:
+            print("restored_train_state was trained using optax")
+            restored_params = flax.core.freeze(restored_train_state['params'])
+        else:
+            print("restored_train_state was trained using flax.optim.")
+            #Note that this does
+        # not convert the naming of pre-Linen checkpoints.
+            restored_params = restored_train_state['optimizer']['target']["params"]
+            restored_train_state["params"] = restored_params
+        train_state = pretrain_utils.init_from_pretrain_state(
+    train_state= train_state,
+    pretrain_state= restored_train_state,
+    skip_regex= "stem_conv|output_projection")
+            #restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
+          #      init_checkpoint_path, train_state, assert_exist=False
+          #  )
+        #print("===============================================")
+        #print(train_state.params.keys(), restored_train_state.params.keys())
+            # Load params from the init_modeeplica
+            #train_state = model.init_from_train_state(  # pytype: disable=attribute-error
+          #train_state, restored_train_state, restored_model_cfg)
+        print("+++++++++++++++++++++++")
+        print(train_state.params["output_projection"].keys())
+        print(train_state.params["output_projection"]["bias"].shape)
+        print(train_state.params["stem_conv"]["kernel"].shape)
+
+    #Replicate the optimzier, state, and rng.
     train_state = jax_utils.replicate(train_state)
 
     del params  # Do not keep a copy of the initial params.
