@@ -341,7 +341,7 @@ def train(
     chrono.load(train_state.metadata["chrono"])
     del train_state.metadata["chrono"]
     """
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     print("restore pretrained model")
     if (
         start_step == 0  # Which means "no" checkpoint is restored!
@@ -355,10 +355,11 @@ def train(
             restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
                 init_checkpoint_path, train_state, assert_exist=False
             )
-            print("===============================================")
+            
             print(train_state.params.keys(), restored_train_state.params.keys())
-            # Load params from the init_modeeplica
-
+            # Load params from the init_model.
+            train_state = model.init_from_train_state(  # pytype: disable=attribute-error
+          train_state, restored_train_state, restored_model_cfg)
     # Replicate the optimzier, state, and rng.
     train_state = jax_utils.replicate(train_state)
 
