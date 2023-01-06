@@ -20,6 +20,13 @@ from scenic.train_lib.transfer import transfer_trainer
 ALL_TRAINERS = {
     'classification_trainer': classification_trainer.train,
     'transfer_trainer': transfer_trainer.train,
+    
+}
+
+ALL_TRAINERS_EVAL = {
+    'classification_trainer': classification_trainer.infer,
+    'transfer_trainer': transfer_trainer,
+    
 }
 
 
@@ -46,3 +53,28 @@ def get_trainer(train_fn_name):
   if train_fn_name not in ALL_TRAINERS.keys():
     raise ValueError('Unrecognized trainer: {}'.format(train_fn_name))
   return ALL_TRAINERS[train_fn_name]
+
+
+def get_trainer_eval(train_fn_name):
+  """Get the corresponding trainer function.
+
+  The returned train function has the following API:
+  ```
+    train_state, train_summary, eval_summary = train_fn(
+      rng, model_cls, dataset, config, workdir, summary_writer)
+  ```
+  Where the train_state is a checkpointable state of training and train_summary,
+  and eval_summary are python dictionary that contains metrics.
+
+  Args:
+    train_fn_name: str; Name of the train_fn_name, e.g.
+      'classification_trainer'.
+
+  Returns:
+    The train function.
+  Raises:
+    ValueError if train_fn_name is unrecognized.
+  """
+  if train_fn_name not in ALL_TRAINERS_EVAL.keys():
+    raise ValueError('Unrecognized trainer: {}'.format(train_fn_name))
+  return ALL_TRAINERS_EVAL[train_fn_name]
