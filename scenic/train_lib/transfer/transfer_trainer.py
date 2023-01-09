@@ -377,7 +377,7 @@ def train(
         train_state = pretrain_utils.init_from_pretrain_state(
     train_state= train_state,
     pretrain_state= restored_train_state,
-    skip_regex= "stem_conv|output_projection")
+    skip_regex= "output_projection")
             #restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           #      init_checkpoint_path, train_state, assert_exist=False
           #  )
@@ -389,7 +389,7 @@ def train(
         print("+++++++++++++++++++++++")
         print(train_state.params["output_projection"].keys())
         print(train_state.params["output_projection"]["bias"].shape)
-        print(train_state.params["stem_conv"]["kernel"].shape)
+        #print(train_state.params["stem_conv"]["kernel"].shape)
 
     #Replicate the optimzier, state, and rng.
     train_state = jax_utils.replicate(train_state)
