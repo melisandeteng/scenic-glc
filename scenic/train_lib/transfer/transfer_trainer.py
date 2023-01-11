@@ -366,6 +366,8 @@ def train(
         """
         restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
         if 'params' in restored_train_state:
+            print("AAAAAAAAA")
+            print(train_state.params["ResidualBlock_8"]["bn2"]["bias"])
             print("restored_train_state was trained using optax")
             restored_params = flax.core.freeze(restored_train_state['params'])
         else:
@@ -386,9 +388,7 @@ def train(
             # Load params from the init_modeeplica
             #train_state = model.init_from_train_state(  # pytype: disable=attribute-error
           #train_state, restored_train_state, restored_model_cfg)
-        print("+++++++++++++++++++++++")
-        print(train_state.params["output_projection"].keys())
-        print(train_state.params["output_projection"]["bias"].shape)
+        #print(train_state.params["output_projection"]["bias"].shape)
         #print(train_state.params["stem_conv"]["kernel"].shape)
 
     #Replicate the optimzier, state, and rng.
