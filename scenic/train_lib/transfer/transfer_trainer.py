@@ -355,17 +355,23 @@ def train(
 
         restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
         if 'params' in restored_train_state:
+            print("AAAAAAAAA")
+            print(train_state.params["ResidualBlock_8"]["bn2"]["bias"])
             print("restored_train_state was trained using optax")
             restored_params = flax.core.freeze(restored_train_state['params'])
         else:
-        # restored_train_state was trained using flax.optim. Note that this does
-        # not convert the naming of pre-Linen checkpoints.
+            print("restored_train_state was trained using flax.optim")
+            print("AAAAAAAAA")
+        # Note that this does not convert the naming of pre-Linen checkpoints.
+            print(train_state.params["ResidualBlock_8"]["bn2"]["bias"][0])
             restored_params = restored_train_state['optimizer']['target']["params"]
             restored_train_state["params"] = restored_params
         train_state = pretrain_utils.init_from_pretrain_state(
     train_state= train_state,
     pretrain_state= restored_train_state,
     skip_regex= "stem_conv|output_projection")
+        print("BBBBBBBB")
+        print(train_state.params["ResidualBlock_8"]["bn2"]["bias"][0])
             #restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           #      init_checkpoint_path, train_state, assert_exist=False
           #  )
@@ -374,10 +380,10 @@ def train(
             # Load params from the init_modeeplica
             #train_state = model.init_from_train_state(  # pytype: disable=attribute-error
           #train_state, restored_train_state, restored_model_cfg)
-        print("+++++++++++++++++++++++")
-        print(train_state.params["output_projection"].keys())
-        print(train_state.params["output_projection"]["bias"].shape)
-        print(train_state.params["stem_conv"]["kernel"].shape)
+       # print("+++++++++++++++++++++++")
+        #print(train_state.params["output_projection"].keys())
+        #print(train_state.params["output_projection"]["bias"].shape)
+        #print(train_state.params["stem_conv"]["kernel"].shape)
 
     # Replicate the optimzier, state, and rng.
     train_state = jax_utils.replicate(train_state)
