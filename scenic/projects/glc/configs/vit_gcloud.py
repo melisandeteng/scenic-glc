@@ -26,7 +26,7 @@ def get_config(runlocal=''):
   config.data_dtype_str = 'float32'
   config.dataset_configs = ml_collections.ConfigDict()
   config.dataset_configs.dataset = "glc_dataset"#'imagenet2012'
-  config.no_comet = False
+  config.no_comet = True
   config.comet= {"tags":["vit", "transfer"]}
   config.dataset_configs = ml_collections.ConfigDict()
 
@@ -106,9 +106,9 @@ def get_config(runlocal=''):
   config.l2_decay_factor = None
   config.max_grad_norm = 1.0
   config.label_smoothing = None
-  config.num_training_epochs = 300
+  config.num_training_epochs = 100
   config.log_eval_steps = 1000
-  config.batch_size = 1 if runlocal else 1024 #4096
+  config.batch_size = 1024 #1 if runlocal else 1024 #4096
   config.rng_seed = 42
   config.init_head_bias = -6.9  # -log(1000)
 
@@ -163,7 +163,7 @@ def get_config(runlocal=''):
       'ds_hue_delta': 0.0,
   }
 
-  config.init_from = {'checkpoint_path': "/mnt/disks/persist/checkpoints_vit/ViT_B_16_ImageNet1k", "model_config":"/home/melisande/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_vit_config.py"}
+  config.init_from = {'checkpoint_path': "/mnt/disks/persist/checkpoints_vit/", "model_config":"/home/melisande/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_vit_config.py"}
 
   return config
 
