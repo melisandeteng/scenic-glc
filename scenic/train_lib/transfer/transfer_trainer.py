@@ -335,13 +335,13 @@ def train(
         metadata={"chrono": chrono.save()},
     )
     start_step = train_state.global_step
-    """
+
     print("restore checkpoint")
     if config.checkpoint:
         train_state, start_step = train_utils.restore_checkpoint(workdir, train_state)
     chrono.load(train_state.metadata["chrono"])
     del train_state.metadata["chrono"]
-    """
+    
     #import pdb; pdb.set_trace()
     print("restore pretrained model")
     if (
