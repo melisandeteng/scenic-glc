@@ -32,7 +32,7 @@ from comet_ml import ExistingExperiment, Experiment
 from time import sleep
 import resource
 from pathlib import Path
-
+from tqdm import tqdm
 #from ray.train._internal.utils import get_address_and_port
 low, high = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (high, high))
@@ -60,7 +60,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
          writer: metric_writers.MetricWriter) -> None:
   """Main function for Scenic."""
   exp=None
-  config.no_comet = True
+  config.no_comet =False
   if not config.no_comet:
         # ----------------------------------
         # -----  Set Comet Experiment  -----
@@ -90,7 +90,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
   model_cls = models.get_model_cls(config.model_name)
   data_rng, rng = jax.random.split(rng)
   bands = config.bands
-  
+  """ 
   if config.checkpoint:
     # When restoring from a checkpoint, change the dataset seed to ensure that
     # the example order is new. With deterministic data, this ensures enough
@@ -105,6 +105,8 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
       logging.info('Folding global_step %s into dataset seed.', global_step)
       data_rng = jax.random.fold_in(data_rng, global_step)
   #(TFDS_DATA_DIR)
+  #import pdb; pdb.set_trace()
+  """
   dataset = glc_data.get_dataset(
       dataset_configs=config,
     batch_size=config.batch_size,
@@ -112,6 +114,13 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
     num_shards=8,
     dtype_str = 'float32',
     bands = bands)
+  total_steps, steps_per_epoch = train_utils.get_num_training_steps(
+        config, dataset.meta_data
+    )
+  print("TOTAL STEPS", total_steps)
+  #for i in tqdm(range(total_steps)):
+  #  next(dataset.train_iter)
+  
   #import pdb; pdb.set_trace()
   trainers.get_trainer(config.trainer_name)(
       rng=rng,
@@ -122,6 +131,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
       writer=writer,
       comet_exp=exp)
 
+  print("DONE ITERATING OVER DATASET")
 
 if __name__ == '__main__':
   app.run(main=main)

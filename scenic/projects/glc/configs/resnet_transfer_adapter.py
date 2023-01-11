@@ -6,7 +6,7 @@ r"""Default configs for ResNet on ImageNet.
 
 import ml_collections
 
-GLC_TRAIN_SIZE = 40080# 1587395
+GLC_TRAIN_SIZE =  1587395
 
 
 def get_config():
@@ -21,17 +21,17 @@ def get_config():
     config.dataset_configs = ml_collections.ConfigDict()
     
     config.no_comet = False
-    config.comet= {"tags":["test_run", "transfer", adapter]}
+    config.comet= {"tags":["test_run", "transfer", "adapter"]}
     
     config.base_dir = (
       '/mnt/disks/persist/')
     config.tables = {
-      'train': 'val_image.tfrecords',
+      'train': 'train_image.tfrecords',
       'validation': 'val_image.tfrecords',
       'test': 'test_image.tfrecords'
     }
     config.examples_per_subset = {
-      'train': 40080, #1587395
+      'train': 1587395,
       'validation': 40080,
       'test': 36421
     }
@@ -46,7 +46,8 @@ def get_config():
     config.num_layers = 50
     config.model_dtype_str = 'float32'
     
-    
+    config.adapter_layers=""
+    config.adapter_dim=32
     # Training.
     config.trainer_name = 'transfer_trainer'
     config.optimizer = 'momentum'
@@ -57,11 +58,11 @@ def get_config():
     config.max_grad_norm = None
     config.label_smoothing = None
     config.num_training_epochs = 90
-    config.batch_size = 64 #32 #8192
+    config.batch_size = 2048 #32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
-    config.num_shards=4    
+    config.num_shards=8    
     # Learning rate.
     steps_per_epoch = GLC_TRAIN_SIZE // config.batch_size
     total_steps = config.num_training_epochs * steps_per_epoch
@@ -73,7 +74,7 @@ def get_config():
     config.lr_configs.warmup_steps = 7 * steps_per_epoch
     config.lr_configs.steps_per_cycle = total_steps
     config.lr_configs.base_learning_rate = base_lr
-    config.init_from = {'checkpoint_path': "/mnt/disks/persist/checkpoints", "model_config":"/home/melisande/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_resnet_config.py"}
+    config.init_from = {'checkpoint_path': "/mnt/disks/persist/checkpoints_resnet", "model_config":"/home/melisande/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_resnet_config.py"}
     # Logging.
     config.write_summary = True
     config.xprof = True  # Profile using xprof.

@@ -9,7 +9,7 @@ Based on: https://arxiv.org/pdf/2106.10270.pdf
 import ml_collections
 
 _IMAGENET_TRAIN_SIZE = 1281167
-NUM_CLASSES = 1000
+NUM_CLASSES = 17035
 GLC_TRAIN_SIZE = 1587395 #40080
 VARIANT = 'B/16'
 
@@ -43,7 +43,7 @@ def get_config(runlocal=''):
       'test': 36421
     }
   config.onehot_labels= False   
-  config.bands = ["rgb", "near_ir"] #, "near_ir"]
+  config.bands = ["rgb"]#, "near_ir"] #, "near_ir"]
   config.num_classes = 17035
   config.crop_size=224
   config.data_augmentations = ["glc_default"]
