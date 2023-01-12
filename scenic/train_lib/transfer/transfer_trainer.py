@@ -335,13 +335,13 @@ def train(
         metadata={"chrono": chrono.save()},
     )
     start_step = train_state.global_step
-
+    """
     print("restore checkpoint")
     if config.checkpoint:
         train_state, start_step = train_utils.restore_checkpoint(workdir, train_state)
     chrono.load(train_state.metadata["chrono"])
     del train_state.metadata["chrono"]
-    
+    """
     #import pdb; pdb.set_trace()
     print("restore pretrained model")
     if (
@@ -646,3 +646,110 @@ def train(
     jax.random.normal(jax.random.PRNGKey(0), ()).block_until_ready()
     # Return the train and eval summary after last step for regression testing.
     return train_state, train_summary, eval_summary
+
+
+
+def infer(*,
+    rng: jnp.ndarray,
+    config: ml_collections.ConfigDict,
+    model_cls: Type[base_model.BaseModel],
+    dataset: dataset_utils.Dataset,
+    workdir: str,
+    writer: metric_writers.MetricWriter,
+    comet_exp=None,
+
+) -> Tuple[train_utils.TrainState, Dict[str, Any], Dict[str, Any]]:
+    
+    # import pdb; pdb.set_trace()
+    lead_host = jax.process_index() == 0
+    # Build the loss_fn, metrics, and flax_model.
+    model = model_cls(config, dataset.meta_data)
+
+    # Initialize model.
+    rng, init_rng = jax.random.split(rng)
+    (params, model_state, num_trainable_params, gflops) = train_utils.initialize_model(
+        model_def=model.flax_model,
+        input_spec=[
+            (
+                dataset.meta_data["input_shape"],
+                dataset.meta_data.get("input_dtype", jnp.float32),
+            )
+        ],
+        config=config,
+        rngs=init_rng,
+    )
+    # Create optimizer.
+    lr_fn = lr_schedules.get_learning_rate_fn(config)
+    optimizer_config = optimizers.get_optax_optimizer_config(config)
+    # If the config is already an optax-compatible config, better call directly:
+    #   optimizers.get_optimizer(config.optimizer_configs, lr_fn)
+    tx = optimizers.get_optimizer(optimizer_config, lr_fn, params=params)
+    # We jit this, such that the arrays that are created on the same device as the
+    # input is, in this case the CPU. Else they'd be on device[0].
+    opt_state = jax.jit(tx.init, backend="cpu")(params)
+
+    rng, train_rng = jax.random.split(rng)
+
+    # Create chrono class to track and store training statistics and metadata:
+    chrono = train_utils.Chrono()
+
+    train_state = train_utils.TrainState(
+        global_step=0,
+        opt_state=opt_state,
+        tx=tx,
+        params=params,
+        model_state=model_state,
+        rng=train_rng,
+        metadata={"chrono": chrono.save()},
+    )
+    train_state, start_step = train_utils.restore_checkpoint(workdir, train_state)
+    print("restoring checkpoint of step ", start_step)
+    train_state = jax_utils.replicate(train_state)
+    eval_step_pmapped = jax.pmap(
+        functools.partial(
+            eval_step,
+            flax_model=model.flax_model,
+            metrics_fn=model.get_metrics_fn("validation"),
+            debug=config.debug_eval,
+            comet_exp=comet_exp,
+        ),
+        axis_name="batch",
+        # We can donate the eval_batch's buffer.
+        donate_argnums=(1,),
+    )
+    #log_eval_steps = config.get("log_eval_steps") or steps_per_epoch
+    #if not log_eval_steps:
+    #    raise ValueError("'log_eval_steps' should be specified in the config.")
+    #checkpoint_steps = config.get("checkpoint_steps") or log_eval_steps
+    #log_summary_steps = config.get("log_summary_steps") or log_eval_steps
+    # Ceil rounding such that we include the last incomplete batch.
+    eval_batch_size = config.get("eval_batch_size", config.batch_size)
+    total_eval_steps = int(
+                            np.ceil(dataset.meta_data["num_eval_examples"] / eval_batch_size)
+                                )
+    steps_per_eval = config.get("steps_per_eval") or total_eval_steps
+    eval_metrics = []
+    train_state = train_utils.sync_model_state_across_replicas(train_state)
+    for _ in range(steps_per_eval):
+        eval_batch = next(dataset.valid_iter)
+        e_metrics, _ = eval_step_pmapped(train_state, eval_batch)
+        eval_metrics.append(train_utils.unreplicate_and_get(e_metrics))
+    eval_summary = train_utils.log_eval_summary(
+        step=start_step, eval_metrics=eval_metrics, writer=writer
+    )
+    print("EVAL PERFORMANCE")
+    print(eval_summary)
+    train_batch_size = config.get("train_batch_size", config.batch_size)
+    total_train_steps = int(
+                             np.ceil(dataset.meta_data["num_train_examples"] / train_batch_size)
+                                                                            )
+    steps_per_eval = config.get("steps_per_eval") or total_train_steps
+    #train_state = train_utils.sync_model_state_across_replicas(train_state)
+    for _ in range(steps_per_eval):
+        eval_batch = next(dataset.train_iter)
+        e_metrics, _ = eval_step_pmapped(train_state, eval_batch)
+        eval_metrics.append(train_utils.unreplicate_and_get(e_metrics))
+        eval_summary = train_utils.log_eval_summary(
+                step=start_step, eval_metrics=eval_metrics, writer=writer)
+    print("TRAIN PERFORMANCE")
+    print(eval_summary)
