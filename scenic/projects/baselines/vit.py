@@ -75,27 +75,29 @@ class Encoder1DBlock(nn.Module):
     """
     # Attention block.
     assert inputs.ndim == 3
-    x = nn.LayerNorm(dtype=self.dtype)(inputs)
+    x = nn.LayerNorm(dtype=self.dtype, name = "LayerNorm_0")(inputs)
     x = nn.MultiHeadDotProductAttention(
         num_heads=self.num_heads,
         dtype=self.dtype,
         kernel_init=nn.initializers.xavier_uniform(),
         broadcast_dropout=False,
         deterministic=deterministic,
-        dropout_rate=self.attention_dropout_rate)(x, x)
+        dropout_rate=self.attention_dropout_rate,
+        name = "MultiHeadDotProductAttention_1")(x, x)
     x = nn.Dropout(rate=self.dropout_rate)(x, deterministic)
     x = nn_layers.StochasticDepth(rate=self.stochastic_depth)(x, deterministic)
     x = x + inputs
 
     # MLP block.
-    y = nn.LayerNorm(dtype=self.dtype)(x)
+    y = nn.LayerNorm(dtype=self.dtype, name = "LayerNorm_2")(x)
     y = attention_layers.MlpBlock(
         mlp_dim=self.mlp_dim,
         dtype=self.dtype,
         dropout_rate=self.dropout_rate,
         activation_fn=nn.gelu,
         kernel_init=nn.initializers.xavier_uniform(),
-        bias_init=nn.initializers.normal(stddev=1e-6))(
+        bias_init=nn.initializers.normal(stddev=1e-6),
+        name = "MlpBlock_3")(
             y, deterministic=deterministic)
     y = nn_layers.StochasticDepth(rate=self.stochastic_depth)(y, deterministic)
     return y + x
