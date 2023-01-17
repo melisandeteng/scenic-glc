@@ -49,8 +49,10 @@ CLASSIFICATION_MODELS = {
         bit_resnet.BitResNetMultiLabelClassificationModel,
     'resnet_adapter_classification':
         resnet_adapter.ResNetClassificationAdapterModel,
-#    'vit_multilabel_classification':
-#        vit.ViTMultiLabelClassificationModel,
+    'vit_classification':
+        vit.ViTClassificationModel,
+    'vit_multilabel_classification':
+        vit.ViTMultiLabelClassificationModel,
     'hybrid_vit_multilabel_classification':
         hybrid_vit.HybridViTMultiLabelClassificationModel,
     'vit_adapter_classification':

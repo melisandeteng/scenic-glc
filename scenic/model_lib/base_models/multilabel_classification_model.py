@@ -28,6 +28,8 @@ from scenic.model_lib.base_models import model_utils
 _MULTI_LABEL_CLASSIFICATION_METRICS = immutabledict({
     'prec@1': (model_utils.weighted_top_one_correctly_classified,
                model_utils.num_examples),
+    'accuracy': (model_utils.weighted_correctly_classified, model_utils.num_examples),
+    'topk': (functools.partial(model_utils.weighted_topk_correctly_classified, k=30), model_utils.num_examples),
     'loss': (model_utils.weighted_unnormalized_sigmoid_cross_entropy,
              model_utils.num_examples)
 })

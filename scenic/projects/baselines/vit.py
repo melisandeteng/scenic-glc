@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import ml_collections
 import numpy as np
+from scenic.model_lib.base_models.classification_model import ClassificationModel
 from scenic.model_lib.base_models.multilabel_classification_model import MultiLabelClassificationModel
 from scenic.model_lib.layers import attention_layers
 from scenic.model_lib.layers import nn_layers
@@ -381,6 +382,109 @@ class ViTMultiLabelClassificationModel(MultiLabelClassificationModel):
       _merge_params(params, restored_params, model_cfg, restored_model_cfg)
       return train_state.replace(params=flax.core.freeze(params))
 
+class ViTClassificationModel(ClassificationModel):
+  """Vision Transformer model for multi-label classification task."""
+
+  def build_flax_model(self)-> nn.Module:
+    dtype_str = self.config.get('model_dtype_str', 'float32')
+    if dtype_str != 'float32':
+      raise ValueError('`dtype` argument is not propagated properly '
+                       'in the current implmentation, so only '
+                       '`float32` is supported for now.')
+    return ViT(
+        num_classes=self.dataset_meta_data['num_classes'],
+        mlp_dim=self.config.model.mlp_dim,
+        num_layers=self.config.model.num_layers,
+        num_heads=self.config.model.num_heads,
+        positional_embedding=self.config.model.get('positional_embedding',
+                                                   'learned_1d'),
+        representation_size=self.config.model.representation_size,
+        patches=self.config.model.patches,
+        hidden_size=self.config.model.hidden_size,
+        classifier=self.config.model.classifier,
+        dropout_rate=self.config.model.get('dropout_rate'),
+        attention_dropout_rate=self.config.model.get('attention_dropout_rate'),
+        stochastic_depth=self.config.model.get('stochastic_depth', 0.0),
+        dtype=getattr(jnp, dtype_str),
+    )
+
+  def default_flax_model_config(self) -> ml_collections.ConfigDict:
+    return ml_collections.ConfigDict({
+        'model':
+            dict(
+                num_heads=2,
+                num_layers=1,
+                representation_size=16,
+                mlp_dim=32,
+                dropout_rate=0.,
+                attention_dropout_rate=0.,
+                hidden_size=16,
+                patches={'size': (4, 4)},
+                classifier='gap',
+                data_dtype_str='float32')
+    })
+
+  def init_from_train_state(
+      self, train_state: Any, restored_train_state: Any,
+      restored_model_cfg: ml_collections.ConfigDict) -> Any:
+    """Updates the train_state with data from restored_train_state.
+    This function is writen to be used for 'fine-tuning' experiments. Here, we
+    do some surgery to support larger resolutions (longer sequence length) in
+    the transformer block, with respect to the learned pos-embeddings.
+    Args:
+      train_state: A raw TrainState for the model.
+      restored_train_state: A TrainState that is loaded with parameters/state of
+        a  pretrained model.
+      restored_model_cfg: Configuration of the model from which the
+        restored_train_state come from. Usually used for some asserts.
+    Returns:
+      Updated train_state.
+    """
+    return init_vit_from_train_state(train_state, restored_train_state,
+                                     self.config, restored_model_cfg)
+
+  def load_augreg_params(self, train_state: Any, params_path: str,
+                         model_cfg: ml_collections.ConfigDict) -> Any:
+    """Loads parameters from an AugReg checkpoint.
+    See
+    https://github.com/google-research/vision_transformer/
+    and
+    https://arxiv.org/abs/2106.10270
+    for more information about these pre-trained models.
+    Args:
+      train_state: A raw TrainState for the model.
+      params_path: Path to an Augreg checkpoint. The model config is read from
+        the filename (e.g. a B/32 model starts with "B_32-").
+      model_cfg: Configuration of the model. Usually used for some asserts.
+    Returns:
+      Updated train_state with params replaced with the ones read from the
+      AugReg checkpoint.
+    """
+    restored_model_cfg = _get_augreg_cfg(params_path)
+    assert tuple(restored_model_cfg.patches.size) == tuple(
+        model_cfg.patches.size)
+    assert restored_model_cfg.hidden_size == model_cfg.hidden_size
+    assert restored_model_cfg.mlp_dim == model_cfg.mlp_dim
+    assert restored_model_cfg.num_layers == model_cfg.num_layers
+    assert restored_model_cfg.num_heads == model_cfg.num_heads
+    assert restored_model_cfg.classifier == model_cfg.classifier
+
+    flattened = np.load(gfile.GFile(params_path, 'rb'))
+    restored_params = flax.traverse_util.unflatten_dict(
+        {tuple(k.split('/')): v for k, v in flattened.items()})
+    restored_params['output_projection'] = restored_params.pop('head')
+
+    if 'optimizer' in train_state:
+      # TODO(dehghani): Remove support for flax optim.
+      params = flax.core.unfreeze(train_state.optimizer.target)
+      _merge_params(params, restored_params, model_cfg, restored_model_cfg)
+      return train_state.replace(
+          optimizer=train_state.optimizer.replace(
+              target=flax.core.freeze(params)))
+    else:
+      params = flax.core.unfreeze(train_state.params)
+      _merge_params(params, restored_params, model_cfg, restored_model_cfg)
+      return train_state.replace(params=flax.core.freeze(params))
 
 def _get_augreg_cfg(params_path):
   model = params_path.split('/')[-1].split('-')[0]
