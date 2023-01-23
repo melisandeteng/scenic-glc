@@ -565,6 +565,7 @@ def train(
                 comet_exp.log_metric(
                     "train_accuracy", train_summary["accuracy"], step=step
                 )
+                comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
                 comet_exp.log_metric("train_topk", train_summary["topk"], step=step)
             # Reset metric accumulation for next evaluation cycle.
             train_metrics, extra_training_logs = [], []

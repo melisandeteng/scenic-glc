@@ -49,14 +49,14 @@ def get_config():
     config.model_dtype_str = 'float32'
 
     # Training.
-    config.trainer_name = 'classification_trainer'
+    config.trainer_name = 'transfer_trainer'
     config.optimizer = 'momentum'
     config.optimizer_configs = ml_collections.ConfigDict()
     config.optimizer_configs.momentum = 0.9
     config.l2_decay_factor = .00005
     config.max_grad_norm = None
     config.label_smoothing = None
-    config.num_training_epochs = 90
+    config.num_training_epochs = 25
     config.batch_size = 64 #32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
@@ -65,12 +65,14 @@ def get_config():
     # Learning rate.
     steps_per_epoch = GLC_TRAIN_SIZE // config.batch_size
     total_steps = config.num_training_epochs * steps_per_epoch
-    base_lr = 0.1 * config.batch_size / 256
+    base_lr = 0.1 #* config.batch_size / 256
     # setting 'steps_per_cycle' to total_steps basically means non-cycling cosine.
     config.lr_configs = ml_collections.ConfigDict()
     config.lr_configs.learning_rate_schedule = 'compound'
-    config.lr_configs.factors = 'constant * cosine_decay * linear_warmup'
-    config.lr_configs.warmup_steps = 7 * steps_per_epoch
+    config.lr_configs.factors = "piecewise_constant"#'constant * cosine_decay * linear_warmup'
+    config.lr_configs.decay_events =  [100]
+    config.lr_configs.decay_factors = [0.05]
+    config.lr_configs.warmup_steps = 0 #7 * steps_per_epoch
     config.lr_configs.steps_per_cycle = total_steps
     config.lr_configs.base_learning_rate = base_lr
 
