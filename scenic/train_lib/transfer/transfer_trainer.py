@@ -379,7 +379,7 @@ def train(
         train_state = pretrain_utils.init_from_pretrain_state(
     train_state= train_state,
     pretrain_state= restored_train_state,
-    skip_regex= "output_projection")
+    skip_regex= "output_projection|stem_conv")
             #restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           #      init_checkpoint_path, train_state, assert_exist=False
           #  )
@@ -565,7 +565,7 @@ def train(
                 comet_exp.log_metric(
                     "train_accuracy", train_summary["accuracy"], step=step
                 )
-                comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
+                #comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
                 comet_exp.log_metric("train_topk", train_summary["topk"], step=step)
             # Reset metric accumulation for next evaluation cycle.
             train_metrics, extra_training_logs = [], []

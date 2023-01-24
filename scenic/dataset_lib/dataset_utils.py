@@ -241,7 +241,7 @@ def augment_random_crop_flip(image,
     if flip:
     # Randomly flip the image horizontally.
         image = tf.image.random_flip_left_right(image)
-
+        image = tf.image.random_flip_up_down(image)
     return image
 
 

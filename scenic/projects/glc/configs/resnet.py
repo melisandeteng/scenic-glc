@@ -57,7 +57,7 @@ def get_config():
     config.max_grad_norm = None
     config.label_smoothing = None
     config.num_training_epochs = 25
-    config.batch_size = 64 #32 #8192
+    config.batch_size = 32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
@@ -65,17 +65,18 @@ def get_config():
     # Learning rate.
     steps_per_epoch = GLC_TRAIN_SIZE // config.batch_size
     total_steps = config.num_training_epochs * steps_per_epoch
-    base_lr = 0.1 #* config.batch_size / 256
+    base_lr = 0.01 #* config.batch_size / 256
     # setting 'steps_per_cycle' to total_steps basically means non-cycling cosine.
     config.lr_configs = ml_collections.ConfigDict()
     config.lr_configs.learning_rate_schedule = 'compound'
-    config.lr_configs.factors = "piecewise_constant"#'constant * cosine_decay * linear_warmup'
-    config.lr_configs.decay_events =  [100]
-    config.lr_configs.decay_factors = [0.05]
+    config.lr_configs.factors = "constant"#'constant * cosine_decay * linear_warmup'
+
+    #config.lr_configs.decay_events =  [0]
+    #config.lr_configs.decay_factors = [0.01]
     config.lr_configs.warmup_steps = 0 #7 * steps_per_epoch
     config.lr_configs.steps_per_cycle = total_steps
-    config.lr_configs.base_learning_rate = base_lr
-
+    config.lr_configs.base_learning_rate = 0.01 #base_lr
+    config.init_from = {'checkpoint_path': "/mnt/disks/persist/checkpoints", "model_config":"/home/tengmeli/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_resnet_config.py"}
     # Logging.
     config.write_summary = True
     config.xprof = True  # Profile using xprof.
