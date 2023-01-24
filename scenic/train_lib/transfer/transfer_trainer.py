@@ -378,6 +378,7 @@ def train(
     train_state= train_state,
     pretrain_state= restored_train_state,
     skip_regex= "stem_conv|output_projection")
+
             #restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           #      init_checkpoint_path, train_state, assert_exist=False
           #  )

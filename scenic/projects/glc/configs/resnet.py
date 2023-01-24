@@ -74,13 +74,14 @@ def get_config():
     # setting 'steps_per_cycle' to total_steps basically means non-cycling cosine.
     config.lr_configs = ml_collections.ConfigDict()
     config.lr_configs.learning_rate_schedule = 'compound'
-    config.lr_configs.factors = "piecewise_constant"#'constant * cosine_decay * linear_warmup'
-    config.lr_configs.decay_events =  [100]
-    config.lr_configs.decay_factors = [0.05]
+    config.lr_configs.factors = "constant"#'constant * cosine_decay * linear_warmup'
+
+    #config.lr_configs.decay_events =  [0]
+    #config.lr_configs.decay_factors = [0.01]
     config.lr_configs.warmup_steps = 0 #7 * steps_per_epoch
     config.lr_configs.steps_per_cycle = total_steps
-    config.lr_configs.base_learning_rate = base_lr
-
+    config.lr_configs.base_learning_rate = 0.01 #base_lr
+    config.init_from = {'checkpoint_path': "/mnt/disks/persist/checkpoints", "model_config":"/home/tengmeli/scenic-glc/scenic/projects/baselines/configs/imagenet/imagenet_resnet_config.py"}
     # Logging.
     config.write_summary = True
     config.xprof = True  # Profile using xprof.
