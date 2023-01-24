@@ -366,8 +366,6 @@ def train(
         """
         restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
         if 'params' in restored_train_state:
-            print("AAAAAAAAA")
-            print(train_state.params["ResidualBlock_8"]["bn2"]["bias"])
             print("restored_train_state was trained using optax")
             restored_params = flax.core.freeze(restored_train_state['params'])
         else:
@@ -379,7 +377,7 @@ def train(
         train_state = pretrain_utils.init_from_pretrain_state(
     train_state= train_state,
     pretrain_state= restored_train_state,
-    skip_regex= "output_projection")
+    skip_regex= "stem_conv|output_projection")
             #restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
           #      init_checkpoint_path, train_state, assert_exist=False
           #  )
@@ -565,7 +563,7 @@ def train(
                 comet_exp.log_metric(
                     "train_accuracy", train_summary["accuracy"], step=step
                 )
-                comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
+                #comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
                 comet_exp.log_metric("train_topk", train_summary["topk"], step=step)
             # Reset metric accumulation for next evaluation cycle.
             train_metrics, extra_training_logs = [], []
