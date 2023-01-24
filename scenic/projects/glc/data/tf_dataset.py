@@ -14,6 +14,7 @@ import tensorflow as tf
 
 
 def parse_tfr_element(element, bands="all", subset="train"):
+    #import pdb; pdb.set_trace()
     #use the same structure as above; it's kinda an outline of the structure we now want to create
     # Create a dictionary describing the features.
     data = {
@@ -41,26 +42,31 @@ def parse_tfr_element(element, bands="all", subset="train"):
         label =content['target']
         
     #get our 'feature'-- our image -- and reshape it appropriately
-    feature_rgb = tf.image.decode_image(raw_image, channels=3)
-    feature_nir= tf.image.decode_image(content["near_ir"], channels=1)
-    feature_landcover=  tf.expand_dims(tf.reshape(tf.io.decode_raw(content["landcover"], tf.uint8), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
-    feature_alt = tf.expand_dims(tf.reshape(tf.io.decode_raw(content["altitude"], tf.uint16), shape=[256,256]), -1)
-        
-    features = {"rgb": (tf.cast(feature_rgb, tf.float32)-[106.9413, 114.8733, 104.5285])/ [51.0005, 44.8595, 43.2014],
-                "near_ir": (tf.cast(feature_nir, tf.float32)- 131.0458)/53.0884,
-                "landcover": tf.cast(feature_landcover, tf.float32)/33.0, 
-                "altitude":(tf.cast(feature_alt, tf.float32)-298.1693)/459.3285}
+    feature_rgb = tf.dtypes.cast(tf.image.decode_image(raw_image, channels=3),  tf.float32)
+    feature_nir= tf.dtypes.cast(tf.image.decode_image(content["near_ir"], channels=1),  tf.float32)
+    #feature_landcover= tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.uint8), tf.float32), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1) # tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.int16), tf.float32), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
+    feature_alt = tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["altitude"], tf.int16), tf.float32),shape=[256,256]), -1)
+    #print("LANDCOVER",feature_landcover)
+
+    features = {"rgb": tf.divide(feature_rgb-tf.convert_to_tensor([106.9413, 114.8733, 104.5285]), tf.convert_to_tensor([51.0005, 44.8595, 43.2014])),
+                "near_ir": (feature_nir- 131.0458)/53.0884,
+               # "landcover": feature_landcover/33.0, 
+               "altitude":(feature_alt-298.1693)/459.3285}
+
     if bands==["all"]:
-        bands = ["rgb", "near_ir", "landcover", "altitude"]
-    features = [features[b] for b in bands]
-    features = tf.concat(features, axis = -1)
+        bands = ["rgb", "near_ir", "altitude"]#, "landciver"]
+    features_ = [features[b] for b in bands]
+    print("FEATURES",  [(b,features[b]) for b in bands] ) 
+    features_ = tf.concat([features["rgb"],features["near_ir"]], axis = -1)
+    features_2  =feature_alt #tf.concat([feature_landcover, feature_alt], axis = -1)
+    features = tf.concat([features_, features_2], axis = -1)
     #features = tf.expand_dims(features, axis=0)
     if subset=="test":
         return {"inputs":features}
     else:
         return {"inputs": features, "label":label}
 
-def get_dataset(path = '/network/scratch/t/tengmeli/temp_glc/val_images.tfrecords', bands=["all"], subset="train"):
+def get_dataset(path = '/network/scratch/t/tengmeli/temp_glc/val_images_new3.tfrecords', bands=["all"], subset="train"):
   
     dataset = tf.data.TFRecordDataset([path])
 
