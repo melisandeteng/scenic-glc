@@ -27,6 +27,7 @@ from scenic.train_lib import train_utils
 from scenic.train_lib import trainers
 import scenic.projects.glc.data.glc_dataset as glc_data
 import os 
+import scenic.dataset_lib.datasets as datasets
 
 from comet_ml import ExistingExperiment, Experiment
 from time import sleep
@@ -107,6 +108,8 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
   #(TFDS_DATA_DIR)
   #import pdb; pdb.set_trace()
   """
+  #dataset = #datasets.get_dataset(
+     #   config.dataset_name,
   dataset = glc_data.get_dataset(
       dataset_configs=config,
     batch_size=config.batch_size,
@@ -117,7 +120,7 @@ def main(rng: jnp.ndarray, config: ml_collections.ConfigDict, workdir: str,
   total_steps, steps_per_epoch = train_utils.get_num_training_steps(
         config, dataset.meta_data
     )
-  print("TOTAL STEPS", total_steps)
+  #print("TOTAL STEPS", total_steps)
   #for i in tqdm(range(total_steps)):
   #  next(dataset.train_iter)
   

@@ -41,19 +41,29 @@ def parse_tfr_element(element, bands="all", subset="train"):
         label =content['target']
         
     #get our 'feature'-- our image -- and reshape it appropriately
-    feature_rgb = tf.image.decode_image(raw_image, channels=3)
-    feature_nir= tf.image.decode_image(content["near_ir"], channels=1)
-    feature_landcover=  tf.expand_dims(tf.reshape(tf.io.decode_raw(content["landcover"], tf.uint8), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
-    feature_alt = tf.expand_dims(tf.reshape(tf.io.decode_raw(content["altitude"], tf.uint16), shape=[256,256]), -1)
-        
+    #feature_rgb = tf.image.decode_image(raw_image, channels=3)
+    #feature_nir= tf.image.decode_image(content["near_ir"], channels=1)
+    #print("LANDCOVER")
+    #feature_landcover=  tf.expand_dims(tf.reshape(tf.io.decode_raw(content["landcover"], tf.int8), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
+    #print("ALTITUDE")
+    #feature_alt = tf.expand_dims(tf.reshape(tf.io.decode_raw(content["altitude"], tf.int16), shape=[256,256]), -1)
+    #get our 'feature'-- our image -- and reshape it appropriately
+    feature_rgb = tf.dtypes.cast(tf.image.decode_image(raw_image, channels=3),  tf.float32)
+    feature_nir= tf.dtypes.cast(tf.image.decode_image(content["near_ir"], channels=1),  tf.float32)
+   # feature_landcover= tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.uint8), tf.float32), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1) # tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.int16), tf.float32), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
+    feature_alt = tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["altitude"], tf.int16), tf.float32),shape=[256,256]), -1)
     features = {"rgb": (tf.cast(feature_rgb, tf.float32)-[106.9413, 114.8733, 104.5285])/ [51.0005, 44.8595, 43.2014],
                 "near_ir": (tf.cast(feature_nir, tf.float32)- 131.0458)/53.0884,
-                "landcover": tf.cast(feature_landcover, tf.float32)/33.0, 
+    #            "landcover": tf.cast(feature_landcover, tf.float32)/33.0, 
                 "altitude":(tf.cast(feature_alt, tf.float32)-298.1693)/459.3285}
     if bands==["all"]:
         bands = ["rgb", "near_ir", "landcover", "altitude"]
-    features = [features[b] for b in bands]
-    features = tf.concat(features, axis = -1)
+    features_ = tf.concat([features["rgb"],features["near_ir"]], axis = -1)
+    features_2  = features["altitude"]#tf.concat([feature_landcover, feature_alt], axis = -1)
+    features =  tf.concat([features_, features_2], axis = -1)             
+    #features = tf.expand_dims(features, axis=0)
+    #features = [features[b] for b in bands]
+    #features = tf.concat(features, axis = -1)
     #features = tf.expand_dims(features, axis=0)
     if subset=="test":
         return {"inputs":features}
