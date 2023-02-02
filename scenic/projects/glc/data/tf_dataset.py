@@ -58,9 +58,6 @@ def parse_tfr_element(element, bands="all", subset="train"):
     features_ = [features[b] for b in bands]
    
     features = tf.concat(features_, axis = -1)
-    #features_2  =tf.concat([features["landcover"], features["altitude"]], axis = -1)
-    #features = tf.concat([features_, features_2], axis = -1)
-    #features = tf.expand_dims(features, axis=0)
     
     if subset=="test":
         return {"inputs":features}

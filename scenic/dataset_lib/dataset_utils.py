@@ -238,8 +238,7 @@ def augment_random_crop_flip(image,
 
     # Randomly crop a [HEIGHT, WIDTH] section of the image.
     image.set_shape([256,256,num_channels])
-    image =tf.image.resize(image, [224, 224])
-    #image = tf.image.center_crop(image, height, width)
+    image =tf.image.resize(image, [height, width])
 
     if flip:
     # Randomly flip the image horizontally.
