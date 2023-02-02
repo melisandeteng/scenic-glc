@@ -61,7 +61,7 @@ def image_example(observation_id, coordinates, label, root="/network/scratch/s/s
     altitude= tifffile.imread(altitude_filename).tobytes()
     
     landcover_filename = filename.with_name(filename.stem + "_landcover.tif")
-    landcover= open(landcover_filename, 'rb').read()
+    landcover=  tifffile.imread(landcover_filename).tobytes()  #open(landcover_filename, 'rb').read()
 
 
     feature = {
@@ -117,8 +117,8 @@ def test_image_example(observation_id, coordinates,  root="/network/scratch/s/sa
 
     feature = {
         'observation_id': _bytes_feature(bytes(observation_id, 'utf-8')),
-        #'latitude': _float_feature(coordinates[0]),
-        #'longitude': _float_feature(coordinates[1]),
+        'latitude': _float_feature(coordinates[0]),
+        'longitude': _float_feature(coordinates[1]),
         'rgb': _bytes_feature(rgb),
         'height': _int64_feature(image_shape[0]),
         'width': _int64_feature(image_shape[1]),
@@ -210,7 +210,7 @@ if __name__=="__main__":
             subset="train")
 
     observation_ids, coordinates, targets= init
-    record_file = '/network/scratch/t/tengmeli/temp_glc/train_images_new4.tfrecords'
+    record_file = '/network/scratch/t/tengmeli/temp_glc/train_images_new6.tfrecords'
     with tf.io.TFRecordWriter(record_file) as writer:
         for i in range (len(observation_ids)):
             

@@ -132,8 +132,11 @@ class ResNet(nn.Module):
       representations[f'stage_{i + 1}'] = x
 
     # Head.
+    import pdb; pdb.set_trace()
     if self.num_outputs:
+     # x_copy = jnp.copy(x)
       x = jnp.mean(x, axis=(1, 2))
+      #x_copy_2 = jnp.copy(x)
       x = nn_layers.IdentityLayer(name='pre_logits')(x)
       x = nn.Dense(
           self.num_outputs,
@@ -142,7 +145,7 @@ class ResNet(nn.Module):
           dtype=self.dtype,
           name='output_projection')(
               x)
-      return x
+      return x #,  x_copy, x_copy_2
     else:
       return representations
 

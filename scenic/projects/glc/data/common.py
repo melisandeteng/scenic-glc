@@ -13,8 +13,6 @@ if TYPE_CHECKING:
 
 def get_num_channels(data):
     counter=0
-    if data=="all":
-        counter+=6
     if "rgb" in data:
         counter +=3
     if "near_ir" in data:
@@ -23,6 +21,8 @@ def get_num_channels(data):
         counter += 1
     if "landcover" in data:
         counter += 1
+    if data=="all":
+        counter+=6
     return(counter)
 
 def load_patch( 

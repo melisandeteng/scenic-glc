@@ -207,7 +207,7 @@ def augment_random_crop_flip(image,
                              height=None,
                              width=None,
                              num_channels=None,
-                             crop_padding=4,
+                             crop_padding=0,
                              flip=True):
     """Augment small image with random crop and h-flip.
 
@@ -222,6 +222,7 @@ def augment_random_crop_flip(image,
     Returns:
     Augmented image.
     """
+    
     #h, w, c = image.shape #get_shape().as_list()
     height = height #or h
     width = width #or w
@@ -236,7 +237,9 @@ def augment_random_crop_flip(image,
                            [crop_padding, crop_padding], [0, 0]], 'REFLECT')
 
     # Randomly crop a [HEIGHT, WIDTH] section of the image.
-    image = tf.image.random_crop(image, [height, width, num_channels])
+    image.set_shape([256,256,num_channels])
+    image =tf.image.resize(image, [224, 224])
+    #image = tf.image.center_crop(image, height, width)
 
     if flip:
     # Randomly flip the image horizontally.

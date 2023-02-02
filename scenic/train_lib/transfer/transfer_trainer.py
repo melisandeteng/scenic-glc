@@ -519,7 +519,15 @@ def train(
     write_note(f"First step compilations...\n{chrono.note}")
     for step in range(start_step + 1, total_steps + 1):
         with jax.profiler.StepTraceAnnotation("train", step_num=step):
+            
+            import pdb; pdb.set_trace()
             train_batch = next(dataset.train_iter)
+            eval_batch = next(dataset.valid_iter)
+            print("AAAAAA")
+
+            train_state, t_metrics, t_logs = eval_step_pmapped(
+                train_state, eval_batch
+            )
             train_state, t_metrics, t_logs = train_step_pmapped(
                 train_state, train_batch
             )
@@ -571,7 +579,7 @@ def train(
 
             chrono.resume()
         ################### EVALUATION #######################
-        if (step % log_eval_steps == 1 and step != 1) or (step == total_steps):
+        if (step % log_eval_steps == 1) or (step == total_steps):
             chrono.pause(wait_for=(train_state.params))
             with report_progress.timed("eval"):
                 # Sync model state across replicas.

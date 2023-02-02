@@ -178,8 +178,8 @@ def get_augmentations(example, onehot_label, num_channels=6, dtype=tf.float32, d
         if 'glc_default' in data_augmentations:
             if subset == "train":
                 #example["label"] = tf.one_hot(example["label"], 17035)
-           #     image = dataset_utils.augment_random_crop_flip(
-            #        image, crop_size, crop_size, num_channels, crop_padding=0, flip=True)
+                image = dataset_utils.augment_random_crop_flip(
+                    image, crop_size, crop_size, num_channels, crop_padding=0, flip=True)
                 image = tf.cast(image, dtype=dtype)
                 return {'inputs': image, 'label': label}
 		#abel = tf.one_hot(exanple['label']) if onehot_labels else label
@@ -189,7 +189,7 @@ def get_augmentations(example, onehot_label, num_channels=6, dtype=tf.float32, d
                 #print(tf.shape(example["inputs"]))
                 #image = tf.image.resize_with_crop_or_pad(
                 #    image, crop_size, crop_size)
-           #     image = dataset_utils.augment_random_crop_flip(image, crop_size,crop_size, num_channels,crop_padding=0, flip=False)
+                image = dataset_utils.augment_random_crop_flip(image, crop_size,crop_size, num_channels,crop_padding=0, flip=False)
                 image = tf.cast(image, dtype=dtype)
                 if subset == "validation":
                     #example["label"] = tf.one_hot(example["label"], 17035)
