@@ -17,6 +17,7 @@ from scenic.projects.glc.data import common
 import tensorflow as tf
 from scenic.projects.glc.data import tf_dataset
 from scenic.projects.glc.data.common import get_num_channels
+
 # Aliases for custom types:
 Batch = Dict[str, jnp.ndarray]
 Rng = Union[jnp.ndarray, Dict[str, jnp.ndarray]]
@@ -24,6 +25,19 @@ Rng = Union[jnp.ndarray, Dict[str, jnp.ndarray]]
 TRAIN_IMAGES = 1587395
 EVAL_IMAGES = 40080
 TEST_IMAGES = 36421
+
+MEAN_GLC = {
+    "rbg": [106.9413, 114.8733, 104.5285],
+    "near_ir": [131.0458],
+    "altitude": [298.1693],
+    "landcover": [0],
+}
+STD_GLC = {
+    "rbg": [51.0005, 44.8595, 43.2014],
+    "near_ir": [53.0884],
+    "altitude": [459.3285],
+    "landcover": [34],
+}
 
 
 class TFRecordDatasetFactory(abc.ABC):
@@ -37,13 +51,14 @@ class TFRecordDatasetFactory(abc.ABC):
     """
 
     def __init__(
-            self,
-            base_dir: str,
-            tables: Dict[str, Union[str, List[str]]],
-            examples_per_subset: Dict[str, int],
-            num_classes: int,
-            subset: str = 'train',
-            fraction_data: float = 1.0):
+        self,
+        base_dir: str,
+        tables: Dict[str, Union[str, List[str]]],
+        examples_per_subset: Dict[str, int],
+        num_classes: int,
+        subset: str = "train",
+        fraction_data: float = 1.0,
+    ):
         """Initializes the instance of TFRecordDatasetFactory.
 
         Initializes a data-loader.
@@ -71,8 +86,10 @@ class TFRecordDatasetFactory(abc.ABC):
           ValueError: If subset is not a key of tables or examples_per_subset
         """
         if (subset not in tables) or (subset not in examples_per_subset):
-            raise ValueError(f'Invalid subset {subset!r}. '
-                             f'The available subsets are: {set(tables)!r}')
+            raise ValueError(
+                f"Invalid subset {subset!r}. "
+                f"The available subsets are: {set(tables)!r}"
+            )
 
         self.num_classes = num_classes
         self.base_dir = base_dir
@@ -84,14 +101,16 @@ class TFRecordDatasetFactory(abc.ABC):
         super().__init__()
 
 
-def glc_load_split(dsfactory,
-                   batch_size,
-                   subset,
-                   bands=["rgb", "nir"],
-                   dtype=tf.float32,
-                   image_size=224,
-                   shuffle_seed=None,
-                   transform=None):
+def glc_load_split(
+    dsfactory,
+    batch_size,
+    subset,
+    bands=["rgb", "near_ir"],
+    dtype=tf.float32,
+    image_size=224,
+    shuffle_seed=None,
+    transform=None,
+):
     """Creates a split from the ImageNet dataset using TensorFlow Datasets.
 
     For the training set, we drop the last partial batch. This is fine to do
@@ -115,50 +134,71 @@ def glc_load_split(dsfactory,
     if subset == "train":
         split_size = TRAIN_IMAGES // jax.process_count()
         start = jax.process_index() * split_size
-        split = 'train[{}:{}]'.format(start, start + split_size)
+        split = "train[{}:{}]".format(start, start + split_size)
     elif subset == "validation":
         split_size = EVAL_IMAGES // jax.process_count()
         start = jax.process_index() * split_size
-        split = 'validation[{}:{}]'.format(start, start + split_size)
+        split = "validation[{}:{}]".format(start, start + split_size)
     else:
         split_size = TEST_IMAGES // jax.process_count()
         start = jax.process_index() * split_size
-        split = 'test[{}:{}]'.format(start, start + split_size)
+        split = "test[{}:{}]".format(start, start + split_size)
 
     a = dsfactory(subset=subset)
     dataset = tf.data.TFRecordDataset([a.path])
-    
-    # pass every single feature through our mapping function
-    dataset = dataset.map(
-        (lambda x: tf_dataset.parse_tfr_element(x, bands, subset)))
 
-    
+    # pass every single feature through our mapping function
+    dataset = dataset.map((lambda x: tf_dataset.parse_tfr_element(x, bands, subset)))
 
     num_examples = a.num_examples
     options = tf.data.Options()
     options.threading.private_threadpool_size = 48
     dataset = dataset.with_options(options)
-    #print("BBBBBBB", next(iter(dataset)))
-    #import pdb; pdb.set_trace()
-    #dataset = dataset.cache()
-    #a = next(iter(dataset))
+    # print("BBBBBBB", next(iter(dataset)))
+    # import pdb; pdb.set_trace()
+    # dataset = dataset.cache()
+    # a = next(iter(dataset))
     if subset == "train":
         dataset = dataset.repeat()
-        dataset = dataset.map(lambda x:
-                          transform(x))
+        dataset = dataset.map(lambda x: transform(x))
         dataset = dataset.shuffle(16 * batch_size, seed=shuffle_seed)
         dataset = dataset.batch(batch_size, drop_remainder=subset == "train")
-    
+
     else:
-        dataset = dataset.map(lambda x:
-                          transform(x))
+        dataset = dataset.map(lambda x: transform(x))
         dataset = dataset.batch(batch_size, drop_remainder=False)
         dataset = dataset.repeat()
-    
+
     return dataset, num_examples
 
 
-def get_augmentations(example, onehot_label, num_channels=6, dtype=tf.float32, data_augmentations=None, crop_size=224, subset="train"):
+def get_stats(bands):
+    means = []
+    stds = []
+    for b in bands:
+        means += [MEAN_GLC[b]]
+        stds += [STD_GLC[b]]
+    return (means, stds)
+
+
+def normalize_image(image, means, stds, num_channels):
+
+    image -= tf.constant(means, shape=[1, 1, num_channels], dtype=image.dtype)
+    image /= tf.constant(stds, shape=[1, 1, num_channels], dtype=image.dtype)
+    return image
+
+
+def get_augmentations(
+    example,
+    onehot_label,
+    num_channels=5,
+    dtype=tf.float32,
+    data_augmentations=None,
+    crop_size=224,
+    subset="train",
+    means=None,
+    stds=None,
+):
     """Apply data augmentation on the given training example.
 
     Args:
@@ -170,82 +210,113 @@ def get_augmentations(example, onehot_label, num_channels=6, dtype=tf.float32, d
     Returns:
     An augmented training example.
     """
-    #import pdb; pdb.set_trace()
-    image = tf.cast(example['inputs'], dtype=dtype)
+    # import pdb; pdb.set_trace()
+    image = tf.cast(example["inputs"], dtype=dtype)
     if subset != "test":
-        label = example['label'] #tf.one_hot(example['label'], 17035) if onehot_label else example['label']
+        label = example[
+            "label"
+        ]  # tf.one_hot(example['label'], 17035) if onehot_label else example['label']
     if data_augmentations is not None:
-        if 'glc_default' in data_augmentations:
+        if "glc_default" in data_augmentations:
             if subset == "train":
-                #example["label"] = tf.one_hot(example["label"], 17035)
+                # example["label"] = tf.one_hot(example["label"], 17035)
                 image = dataset_utils.augment_random_crop_flip(
-                    image, crop_size, crop_size, num_channels, crop_padding=0, flip=True)
+                    image, crop_size, crop_size, num_channels, crop_padding=0, flip=True
+                )
                 image = tf.cast(image, dtype=dtype)
-                return {'inputs': image, 'label': label}
-		#abel = tf.one_hot(exanple['label']) if onehot_labels else label
-                #return {'inputs': image, 'label': label}
+
             else:
-                #print("-----IMAGE VALIDATION--------")
-                #print(tf.shape(example["inputs"]))
-                #image = tf.image.resize_with_crop_or_pad(
-                #    image, crop_size, crop_size)
-                image = dataset_utils.augment_random_crop_flip(image, crop_size,crop_size, num_channels,crop_padding=0, flip=False)
+                # print("-----IMAGE VALIDATION--------")
+                # print(tf.shape(example["inputs"]))
+
+                image = dataset_utils.augment_random_crop_flip(
+                    image,
+                    crop_size,
+                    crop_size,
+                    num_channels,
+                    crop_padding=0,
+                    flip=False,
+                )
                 image = tf.cast(image, dtype=dtype)
-                if subset == "validation":
-                    #example["label"] = tf.one_hot(example["label"], 17035)
-                    return {'inputs': image, 'label': label}
-                else:
-                    return {'inputs': image}
+    image = normalize_image(image, means, stds, num_channels)
     if subset != "test":
-        return {'inputs': image, 'label': label}
+        return {"inputs": image, "label": label}
     else:
-        return {'inputs': image}
+        return {"inputs": image}
 
 
-@datasets.add_dataset('glc_dataset')
+@datasets.add_dataset("glc_dataset")
 def get_dataset(
     *,
     batch_size: int,
     eval_batch_size: int,
     bands,
     num_shards,
-    dtype_str: Text = 'float32',
+    dtype_str: Text = "float32",
     shuffle_seed: Optional[int] = 0,
     rng: Optional[Rng] = None,
     prefetch_buffer_size=2,
     dataset_configs: ml_collections.ConfigDict,
-        dataset_service_address: Optional[str] = None) -> dataset_utils.Dataset:
+    dataset_service_address: Optional[str] = None,
+) -> dataset_utils.Dataset:
     """Returns a generator for the dataset."""
     del rng  # Parameter was required by caller API, but is unused.
 
     def validate_config(field):
         if dataset_configs.get(field) is None:
-            raise ValueError(
-                f'{field} must be specified for TFRecord dataset.')
+            raise ValueError(f"{field} must be specified for TFRecord dataset.")
 
-    validate_config('base_dir')
-    validate_config('tables')
-    validate_config('examples_per_subset')
-    validate_config('num_classes')
+    validate_config("base_dir")
+    validate_config("tables")
+    validate_config("examples_per_subset")
+    validate_config("num_classes")
 
-    onehot_labels = dataset_configs.get('onehot_labels', True)
-    crop_size = dataset_configs.get('crop_size', 224)
-    data_augmentations = dataset_configs.get('data_augmentations', None)
+    onehot_labels = dataset_configs.get("onehot_labels", True)
+    crop_size = dataset_configs.get("crop_size", 224)
+    data_augmentations = dataset_configs.get("data_augmentations", None)
     num_channels = get_num_channels(bands)
-    data_aug_train = functools.partial(get_augmentations, onehot_label=onehot_labels, num_channels=num_channels,
-                                       dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size, subset="train")
-    data_aug_val = functools.partial(get_augmentations, onehot_label=onehot_labels, num_channels=num_channels,
-                                     dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size, subset="validation")
-    data_aug_test = functools.partial(get_augmentations, onehot_label=onehot_labels, num_channels=num_channels,
-                                      dtype=tf.float32, data_augmentations=data_augmentations, crop_size=crop_size, subset="test")
-    #augmentation_params = dataset_configs.get('augmentation_params', None)
-   # data_augmentations = functools(partial(get_augmentations,augmentation_params)
+    means, stds = get_stats(bands)
+    data_aug_train = functools.partial(
+        get_augmentations,
+        onehot_label=onehot_labels,
+        num_channels=num_channels,
+        dtype=tf.float32,
+        data_augmentations=data_augmentations,
+        crop_size=crop_size,
+        subset="train",
+        means=means,
+        stds=stds,
+    )
+    data_aug_val = functools.partial(
+        get_augmentations,
+        onehot_label=onehot_labels,
+        num_channels=num_channels,
+        dtype=tf.float32,
+        data_augmentations=data_augmentations,
+        crop_size=crop_size,
+        subset="validation",
+        means=means,
+        stds=stds,
+    )
+    data_aug_test = functools.partial(
+        get_augmentations,
+        onehot_label=onehot_labels,
+        num_channels=num_channels,
+        dtype=tf.float32,
+        data_augmentations=data_augmentations,
+        crop_size=crop_size,
+        subset="test",
+        means=means,
+        stds=stds,
+    )
+    # augmentation_params = dataset_configs.get('augmentation_params', None)
+    # data_augmentations = functools(partial(get_augmentations,augmentation_params)
 
-    #onehot_labels = dataset_configs.get('onehot_labels', True)
+    # onehot_labels = dataset_configs.get('onehot_labels', True)
     # For the test set, the actual batch size is
     # test_batch_size * num_test_clips.
-    test_batch_size = dataset_configs.get('test_batch_size', eval_batch_size)
-    test_split = dataset_configs.get('test_split', 'test')
+    test_batch_size = dataset_configs.get("test_batch_size", eval_batch_size)
+    test_split = dataset_configs.get("test_split", "test")
 
     ds_factory = functools.partial(
         TFRecordDatasetFactory,
@@ -256,14 +327,11 @@ def get_dataset(
     )
 
     def create_dataset_iterator(
-
-        subset: Text,
-        batch_size_local: int,
-        transform=None,
+        subset: Text, batch_size_local: int, transform=None,
     ) -> Tuple[Iterator[Batch], int]:
-        is_training = subset == 'train'
-        is_test = subset == 'test'
-        logging.info('Loading split %s', subset)
+        is_training = subset == "train"
+        is_test = subset == "test"
+        logging.info("Loading split %s", subset)
 
         dataset, num_examples = glc_load_split(
             ds_factory,
@@ -273,18 +341,19 @@ def get_dataset(
             dtype=tf.float32,
             image_size=crop_size,
             shuffle_seed=None,
-            transform=transform)
+            transform=transform,
+        )
 
         if dataset_service_address and is_training:
             if shuffle_seed is not None:
-                raise ValueError('Using dataset service with a random seed causes each '
-                                 'worker to produce exactly the same data. Add '
-                                 'config.shuffle_seed = None to your config if you '
-                                 'want to run with dataset service.')
-            logging.info('Using the tf.data service at %s',
-                         dataset_service_address)
-            dataset = dataset_utils.distribute(
-                dataset, dataset_service_address)
+                raise ValueError(
+                    "Using dataset service with a random seed causes each "
+                    "worker to produce exactly the same data. Add "
+                    "config.shuffle_seed = None to your config if you "
+                    "want to run with dataset service."
+                )
+            logging.info("Using the tf.data service at %s", dataset_service_address)
+            dataset = dataset_utils.distribute(dataset, dataset_service_address)
 
         current_ds_iterator = (
             dataset_utils.tf_to_numpy(data) for data in iter(dataset)
@@ -292,34 +361,35 @@ def get_dataset(
 
         return current_ds_iterator, num_examples
 
-    shard_batches = functools.partial(
-        dataset_utils.shard, n_devices=num_shards)
+    shard_batches = functools.partial(dataset_utils.shard, n_devices=num_shards)
     train_iter, n_train_examples = create_dataset_iterator(
-        'train', batch_size, transform=data_aug_train)
+        "train", batch_size, transform=data_aug_train
+    )
     train_iter = map(shard_batches, train_iter)
-#    train_iter = jax_utils.prefetch_to_device(train_iter, prefetch_buffer_size)
+    #    train_iter = jax_utils.prefetch_to_device(train_iter, prefetch_buffer_size)
 
     eval_iter, n_eval_examples = create_dataset_iterator(
-        'validation', eval_batch_size, transform=data_aug_val)
+        "validation", eval_batch_size, transform=data_aug_val
+    )
     eval_iter = map(shard_batches, eval_iter)
-   # eval_iter = jax_utils.prefetch_to_device(eval_iter, prefetch_buffer_size)
+    # eval_iter = jax_utils.prefetch_to_device(eval_iter, prefetch_buffer_size)
 
     test_iter, n_test_examples = create_dataset_iterator(
-        'test', test_batch_size, transform=data_aug_test)  # create_dataset_iterator(
+        "test", test_batch_size, transform=data_aug_test
+    )  # create_dataset_iterator(
     # test_split, test_batch_size) #, transform=data_aug)
     test_iter = map(shard_batches, test_iter)
-    #test_iter = jax_utils.prefetch_to_device(test_iter, prefetch_buffer_size)
+    # test_iter = jax_utils.prefetch_to_device(test_iter, prefetch_buffer_size)
 
     meta_data = {
-        'num_classes': dataset_configs.num_classes,
-        'input_shape': (-1, crop_size, crop_size, num_channels),
-        'num_train_examples': n_train_examples,
-        'num_eval_examples': n_eval_examples,
-        'num_test_examples':
-        n_test_examples,
-        'input_dtype': getattr(jnp, dtype_str),
-        'target_is_onehot': onehot_labels,
+        "num_classes": dataset_configs.num_classes,
+        "input_shape": (-1, crop_size, crop_size, num_channels),
+        "num_train_examples": n_train_examples,
+        "num_eval_examples": n_eval_examples,
+        "num_test_examples": n_test_examples,
+        "input_dtype": getattr(jnp, dtype_str),
+        "target_is_onehot": onehot_labels,
     }
-    logging.info('Dataset metadata:\n%s', meta_data)
+    logging.info("Dataset metadata:\n%s", meta_data)
 
     return dataset_utils.Dataset(train_iter, eval_iter, test_iter, meta_data)
