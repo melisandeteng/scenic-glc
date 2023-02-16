@@ -516,6 +516,15 @@ def train(
         writer.write_scalars(step=1, scalars=step0_log)
 
     write_note(f"First step compilations...\n{chrono.note}")
+
+
+    rep_fn = functools.partial(
+            representation_fn,
+            flax_model=model.flax_model,
+            representation_layer="stem_conv",
+            )
+    p_rep_fn = jax.pmap(rep_fn, donate_argnums=(0, 1),
+        axis_name='batch',)
     for step in range(start_step + 1, total_steps + 1):
         with jax.profiler.StepTraceAnnotation("train", step_num=step):
             
@@ -523,11 +532,10 @@ def train(
             train_batch = next(dataset.train_iter)
             eval_batch = next(dataset.valid_iter)
             print("AAAAAA")
-            representation, _, _ = representation_fn(train_state, 
-                    eval_batch, 
-                    flax_model=model.flax_model,
-                    representation_layer="stem_conv",
-                    )
+
+            representation, _, _ = p_rep_fn(train_state, 
+                    eval_batch) 
+
             train_state, t_metrics, t_logs = eval_step_pmapped(
                 train_state, eval_batch
             )
