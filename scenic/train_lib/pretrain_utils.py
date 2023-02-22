@@ -60,12 +60,13 @@ def _replace_dict(model: PyTree,
       dict(restored), keep_empty_nodes=True)
   model_flat = flax.traverse_util.flatten_dict(
       dict(model), keep_empty_nodes=True)
-
+  
   for m_key, m_params in restored_flat.items():
     # pytype: disable=attribute-error
     for name, to_replace in name_mapping.items():
       m_key = tuple(to_replace if k == name else k for k in m_key)
     # pytype: enable=attribute-error
+    m_key = tuple(m.strip('/') for m in m_key)
     m_key_str = '/'.join(m_key)
     if m_key not in model_flat:
       logging.warning('%s in checkpoint doesn\'t exist in model. Skip.',

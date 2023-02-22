@@ -27,13 +27,13 @@ EVAL_IMAGES = 40080
 TEST_IMAGES = 36421
 
 MEAN_GLC = {
-    "rbg": [106.9413, 114.8733, 104.5285],
+    "rgb":  [106.94150444, 114.87315837, 104.52826283], #[106.9413, 114.8733, 104.5285],
     "near_ir": [131.0458],
     "altitude": [298.1693],
     "landcover": [0],
 }
 STD_GLC = {
-    "rbg": [51.0005, 44.8595, 43.2014],
+    "rgb": [50.59516823, 44.13010964, 41.84300729], #[51.0005, 44.8595, 43.2014],
     "near_ir": [53.0884],
     "altitude": [459.3285],
     "landcover": [34],
@@ -176,13 +176,13 @@ def get_stats(bands):
     means = []
     stds = []
     for b in bands:
-        means += [MEAN_GLC[b]]
-        stds += [STD_GLC[b]]
+        means += MEAN_GLC[b]
+        stds += STD_GLC[b]
     return (means, stds)
 
 
 def normalize_image(image, means, stds, num_channels):
-
+    print("IMAGE DTYPE", image.dtype)
     image -= tf.constant(means, shape=[1, 1, num_channels], dtype=image.dtype)
     image /= tf.constant(stds, shape=[1, 1, num_channels], dtype=image.dtype)
     return image

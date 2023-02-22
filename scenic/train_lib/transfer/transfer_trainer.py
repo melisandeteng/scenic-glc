@@ -259,6 +259,39 @@ def representation_fn(
         batch = jax.lax.all_gather(batch, "batch")
     return representation, batch["label"], batch["batch_mask"]
 
+def representation_fn(
+    train_state: train_utils.TrainState,
+    batch: Batch,
+    *,
+    flax_model: nn.Module,
+    representation_layer: str,
+    gather_to_host: bool = True,
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    variables = {"params": train_state.params, **train_state.model_state}
+
+    representation_layer_parts = representation_layer.split("/")
+    filter_rep = lambda mdl, _: mdl.name == representation_layer_parts[-1]
+    _, model_state = flax_model.apply(
+        variables,
+        batch["inputs"],
+        train=False,
+        capture_intermediates=filter_rep,
+        mutable=["intermediates"],
+        debug=False,
+    )
+    if "intermediates" not in model_state:
+        raise ValueError(
+            f'Layer with name "{representation_layer}"' " does not exist in your model."
+        )
+    representation = model_state["intermediates"]
+    for rep_layer in representation_layer_parts:
+        if rep_layer:
+            representation = representation[rep_layer]
+    representation = representation["__call__"][0]
+    if gather_to_host:
+        representation = jax.lax.all_gather(representation, "batch")
+        batch = jax.lax.all_gather(batch, "batch")
+    return representation, batch["label"]
 
 def train(
     *,
@@ -335,6 +368,29 @@ def train(
         metadata={"chrono": chrono.save()},
     )
     start_step = train_state.global_step
+    init_checkpoint_path = config.init_from.get("checkpoint_path")
+
+    restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
+    if 'params' in restored_train_state:
+        print("restored_train_state was trained using optax")
+        restored_params = flax.core.freeze(restored_train_state['params'])
+    else:
+        print("restored_train_state was trained using flax.optim.")
+        #Note that this does
+        # not convert the naming of pre-Linen checkpoints.
+        restored_params = restored_train_state['optimizer']['target']["params"]
+        restored_train_state["params"] = restored_params
+    
+    model.init_from_train_state(train_state, restored_train_state, config)
+    train_state = train_utils.TrainState(
+        global_step=0,
+        opt_state=opt_state,
+        tx=tx,
+        params=params,
+        model_state=model_state,
+        rng=train_rng,
+        metadata={"chrono": chrono.save()},
+    )
     """
     print("restore checkpoint")
     if config.checkpoint:
@@ -344,6 +400,7 @@ def train(
     """
     #import pdb; pdb.set_trace()
     print("restore pretrained model")
+    """
     if (
         start_step == 0  # Which means "no" checkpoint is restored!
         and config.get("init_from") is not None
@@ -352,18 +409,7 @@ def train(
         restored_model_cfg = config.init_from.get("model_config")
 
         init_checkpoint_path = config.init_from.get("checkpoint_path")
-        """
-        if init_checkpoint_path is not None:
-            restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
-                init_checkpoint_path, train_state, assert_exist=False
-            )
-            
-            print(train_state.params.keys(), restored_train_state.params.keys())
-            # Load params from the init_model.
-            print('init from train state')
-            train_state = model.init_from_train_state(  # pytype: disable=attribute-error
-          train_state, restored_train_state, restored_model_cfg)
-        """
+  
         restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
         if 'params' in restored_train_state:
             print("restored_train_state was trained using optax")
@@ -388,8 +434,20 @@ def train(
           #train_state, restored_train_state, restored_model_cfg)
         #print(train_state.params["output_projection"]["bias"].shape)
         #print(train_state.params["stem_conv"]["kernel"].shape)
-
+    """
+    """
+     if init_checkpoint_path is not None:
+            restored_train_state = pretrain_utils.restore_pretrained_checkpoint(
+                init_checkpoint_path, train_state, assert_exist=False
+            )
+            
+            print(train_state.params.keys(), restored_train_state.params.keys())
+            # Load params from the init_model.
+            print('init from train state')
+            train_state = model.init_from_train_state(  # pytype: disable=attribute-error
+          train_state, restored_train_state, restored_model_cfg)
     #Replicate the optimzier, state, and rng.
+    """
     train_state = jax_utils.replicate(train_state)
 
     del params  # Do not keep a copy of the initial params.
@@ -517,28 +575,70 @@ def train(
 
     write_note(f"First step compilations...\n{chrono.note}")
 
-
+    """
     rep_fn = functools.partial(
             representation_fn,
             flax_model=model.flax_model,
             representation_layer="stem_conv",
             )
-    p_rep_fn = jax.pmap(rep_fn, donate_argnums=(0, 1),
-        axis_name='batch',)
+    rep_fn_1 = functools.partial(
+            representation_fn,
+            flax_model=model.flax_model,
+            representation_layer="ResidualBlock_3",
+            )
+    rep_fn_2 = functools.partial(
+            representation_fn,
+            flax_model=model.flax_model,
+            representation_layer="ResidualBlock_7",
+            )
+    rep_fn_3 = functools.partial(
+            representation_fn,
+            flax_model=model.flax_model,
+            representation_layer="ResidualBlock_11",
+            )
+    rep_fn_4 = functools.partial(
+            representation_fn,
+            flax_model=model.flax_model,
+            representation_layer="ResidualBlock_15",
+            )
+    rep_fn_5 = functools.partial(
+            representation_fn,
+            flax_model=model.flax_model,
+            representation_layer="pre_logits",
+            )
+        
+    p_rep_fn = jax.pmap(rep_fn, donate_argnums=(0, 1),axis_name='batch',)
+    """
     for step in range(start_step + 1, total_steps + 1):
         with jax.profiler.StepTraceAnnotation("train", step_num=step):
             
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             train_batch = next(dataset.train_iter)
-            eval_batch = next(dataset.valid_iter)
-            print("AAAAAA")
-
-            representation, _, _ = p_rep_fn(train_state, 
+            #eval_batch = next(dataset.valid_iter)
+            #print("AAAAAA")
+            # Intermediate representation
+            """
+            representation, _ = p_rep_fn(train_state, 
                     eval_batch) 
-
-            train_state, t_metrics, t_logs = eval_step_pmapped(
-                train_state, eval_batch
-            )
+            rep1,_ = jax.pmap(rep_fn_1, donate_argnums=(0, 1),
+        axis_name='batch',)(train_state, 
+                    eval_batch) 
+            rep2,_ = jax.pmap(rep_fn_2, donate_argnums=(0, 1),
+        axis_name='batch',)(train_state, 
+                    eval_batch) 
+            rep3,_ = jax.pmap(rep_fn_3, donate_argnums=(0, 1),
+        axis_name='batch',)(train_state, 
+                    eval_batch) 
+            rep4,_ = jax.pmap(rep_fn_4, donate_argnums=(0, 1),
+        axis_name='batch',)(train_state, 
+                    eval_batch) 
+            avg,_ = jax.pmap(rep_fn_5, donate_argnums=(0, 1),
+        axis_name='batch',)(train_state, 
+                    eval_batch) 
+            """
+            #train_state, t_metrics, t_logs = eval_step_pmapped(
+            #    train_state, eval_batch
+            #)
             train_state, t_metrics, t_logs = train_step_pmapped(
                 train_state, train_batch
             )

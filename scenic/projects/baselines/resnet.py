@@ -1,7 +1,7 @@
 """Implementation of ResNet."""
 
 import functools
-from typing import Tuple, Callable, Any, Optional, Union, Dict
+from typing import Tuple, Callable, Any,  List,Optional, Union, Dict, Mapping
 
 from absl import logging
 import flax
@@ -13,7 +13,66 @@ from scenic.common_lib import debug_utils
 from scenic.model_lib.base_models.classification_model import ClassificationModel
 from scenic.model_lib.base_models.multilabel_classification_model import MultiLabelClassificationModel
 from scenic.model_lib.layers import nn_layers
+import scenic.train_lib.train_utils as train_utils
 
+# JAX team is working on type annotation for pytree:
+# https://github.com/google/jax/issues/1555
+PyTree = Union[Mapping[str, Mapping], Any]
+
+
+def _replace_dict(model: PyTree,
+                  restored: PyTree,
+                  ckpt_prefix_path: Optional[List[str]] = None,
+                  model_prefix_path: Optional[List[str]] = None,
+                  name_mapping: Optional[Mapping[str, str]] = None,
+                  skip_regex: Optional[str] = None) -> PyTree:
+  """Replaces values in model dictionary with restored ones from checkpoint."""
+  name_mapping = name_mapping or {}
+
+  model = flax.core.unfreeze(model)  # pytype: disable=wrong-arg-types
+  restored = flax.core.unfreeze(restored)  # pytype: disable=wrong-arg-types
+
+  if ckpt_prefix_path:
+    for p in ckpt_prefix_path:
+      restored = restored[p]
+
+  if model_prefix_path:
+    for p in reversed(model_prefix_path):
+      restored = {p: restored}
+
+  # Flatten nested parameters to a dict of str -> tensor. Keys are tuples
+  # from the path in the nested dictionary to the specific tensor. E.g.,
+  # {'a1': {'b1': t1, 'b2': t2}, 'a2': t3}
+  # -> {('a1', 'b1'): t1, ('a1', 'b2'): t2, ('a2',): t3}.
+  restored_flat = flax.traverse_util.flatten_dict(
+      dict(restored), keep_empty_nodes=True)
+  model_flat = flax.traverse_util.flatten_dict(
+      dict(model), keep_empty_nodes=True)
+  #import pdb;pdb.set_trace()
+# ('/init_bn').strip("/").split("/")
+  for m_key, m_params in restored_flat.items():
+    
+    # pytype: disable=attribute-error
+    for name, to_replace in name_mapping.items():
+      m_key = tuple(to_replace if k == name else k for k in m_key)
+    # pytype: enable=attribute-error
+    par = []
+    for elem in m_key:
+        elem = elem.strip('/').split('/')
+        par += elem
+    m_key = tuple(par)
+    m_key_str = '/'.join(m_key)
+    if m_key not in model_flat:
+      logging.warning('%s in checkpoint doesn\'t exist in model. Skip.',
+                      m_key_str)
+      continue
+    if skip_regex and re.findall(skip_regex, m_key_str):
+      logging.info('Skip loading parameter %s.', m_key_str)
+      continue
+    logging.info('Loading %s from checkpoint into model', m_key_str)
+    model_flat[m_key] = m_params
+
+  return flax.core.freeze(flax.traverse_util.unflatten_dict(model_flat))
 
 class ResidualBlock(nn.Module):
   """Bottleneck ResNet block."""
@@ -132,7 +191,7 @@ class ResNet(nn.Module):
       representations[f'stage_{i + 1}'] = x
 
     # Head.
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     if self.num_outputs:
      # x_copy = jnp.copy(x)
       x = jnp.mean(x, axis=(1, 2))
@@ -168,6 +227,56 @@ BLOCK_SIZE_OPTIONS = {
     200: ([3, 24, 36, 3], True)
 }
 
+def init_from_model_state(
+    train_state:Any,
+    pretrain_state: Any,
+    ckpt_prefix_path: Optional[List[str]] = None,
+    model_prefix_path: Optional[List[str]] = None,
+    name_mapping: Optional[Mapping[str, str]] = None,
+    skip_regex: Optional[str] = None) :
+    """Updates the train_state with data from pretrain_state.
+
+    Args:
+        train_state: A raw TrainState for the model.
+        pretrain_state: A TrainState that is loaded with parameters/state of
+          a  pretrained model.
+        ckpt_prefix_path: Prefix to restored model parameters.
+        model_prefix_path: Prefix to the parameters to replace in the subtree model.
+        name_mapping: Mapping from parameter names of checkpoint to this model.
+        skip_regex: If there is a parameter whose parent keys match the regex,
+          the parameter will not be replaced from pretrain_state.
+
+    Returns:
+        Updated train_state.
+    """
+    #import pdb; pdb.set_trace()
+    name_mapping = name_mapping or {}
+    restored_params = pretrain_state['params']
+    restored_model_state = pretrain_state['model_state']
+    
+    # TODO(scenic): Add support for optionally restoring optimizer state.
+    if (restored_model_state is not None and
+      train_state.model_state is not None and train_state.model_state):
+      if model_prefix_path:
+      # Insert model prefix after 'batch_stats'.
+        model_prefix_path = ['batch_stats'] + model_prefix_path
+        if 'batch_stats' in restored_model_state:
+            ckpt_prefix_path = ckpt_prefix_path or []
+            ckpt_prefix_path = ['batch_stats'] + ckpt_prefix_path
+      elif 'batch_stats' not in restored_model_state:  # Backward compatibility.
+        model_prefix_path = ['batch_stats']
+      if ckpt_prefix_path and ckpt_prefix_path[0] != 'batch_stats':
+        ckpt_prefix_path = ['batch_stats'] + ckpt_prefix_path
+        
+      model_state = _replace_dict(train_state.model_state,
+                                restored_model_state,
+                                ckpt_prefix_path,
+                                model_prefix_path,
+                                name_mapping,
+                                skip_regex)
+    #train_state = train_state.replace(  # pytype: disable=attribute-error
+    #    model_state=model_state)
+    return model_state
 
 class ResNetClassificationModel(ClassificationModel):
   """Implemets the ResNet model for classification."""
@@ -182,6 +291,8 @@ class ResNetClassificationModel(ClassificationModel):
 
   def default_flax_model_config(self) -> ml_collections.ConfigDict:
     return _get_default_configs_for_testing()
+
+  
 
   def init_from_train_state(
       self, train_state: Any, restored_train_state: Any,
@@ -203,6 +314,7 @@ class ResNetClassificationModel(ClassificationModel):
       Updated train_state.
     """
     del restored_model_cfg
+    
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
       params = flax.core.unfreeze(train_state.optimizer.target)
@@ -210,7 +322,7 @@ class ResNetClassificationModel(ClassificationModel):
           restored_train_state.optimizer.target)
     else:
       params = flax.core.unfreeze(train_state.params)
-      restored_params = flax.core.unfreeze(restored_train_state.params)
+      restored_params = flax.core.unfreeze(restored_train_state["params"])
     for pname, pvalue in restored_params.items():
       if pname == 'output_projection':
         # The `output_projection` is used as the name of the linear layer at the
@@ -219,9 +331,20 @@ class ResNetClassificationModel(ClassificationModel):
         # the label space is different.
         continue
       else:
-        params[pname] = pvalue
+        
+        if pname=="stem_conv":
+            print("RESTORING STEM CONV RGB CHANNELS FROM INIT")
+            
+            aa =params[pname]["kernel"].copy()
+            aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
+            params[pname] = {"kernel":aa}
+
+        else:
+            params[pname] = pvalue
+    
     logging.info('Parameter summary after initialising from train state:')
     debug_utils.log_param_shapes(params)
+    
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
       return train_state.replace(
@@ -229,9 +352,11 @@ class ResNetClassificationModel(ClassificationModel):
               target=flax.core.freeze(params)),
           model_state=restored_train_state.model_state)
     else:
+      
+      model_state = init_from_model_state(train_state,restored_train_state)
       return train_state.replace(
-          params=flax.core.freeze(params),
-          model_state=restored_train_state.model_state)
+          params=flax.core.freeze(params) ,
+          model_state=model_state)
 
 
 class ResNetMultiLabelClassificationModel(MultiLabelClassificationModel):

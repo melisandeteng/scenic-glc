@@ -48,13 +48,19 @@ def parse_tfr_element(element, bands="all", subset="train"):
         tf.image.decode_image(content["near_ir"], channels=1, dtype=tf.dtypes.uint8,),
         tf.float32,
     )
-    feature_landcover = tf.expand_dims(
-        tf.reshape(
-            tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.int8), tf.float32),
-            shape=[256, 256],
-        ),
-        -1,
-    )  # tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1) # tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.int16), tf.float32), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
+    
+    feature_landcover = tf.dtypes.cast(
+        tf.image.decode_image(content["landcover"], channels=1, dtype=tf.dtypes.uint8,),
+        tf.float32,
+    )
+    
+    #feature_landcover = tf.expand_dims(
+    #    tf.reshape(
+    #        tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.int8), tf.float32),
+    #        shape=[256, 256],
+    #    ),
+    #    -1,
+    #)  # tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1) # tf.expand_dims(tf.reshape(tf.dtypes.cast(tf.io.decode_raw(content["landcover"], tf.int16), tf.float32), shape=[256,256]), -1)#tf.expand_dims(tfio.experimental.image.decode_tiff(content["landcover"])[:,:,0], -1)
     feature_alt = tf.expand_dims(
         tf.reshape(
             tf.dtypes.cast(tf.io.decode_raw(content["altitude"], tf.int16), tf.float32),
