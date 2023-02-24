@@ -1,7 +1,9 @@
 """Implementation of ResNet and adapters."""
 
 import functools
-from typing import Tuple, Callable, Any, Optional, Union, Dict
+from typing import Tuple, Callable, Any,  List,Optional, Union, Dict, Mapping
+
+import scenic.train_lib.train_utils as train_utils
 
 from absl import logging
 import flax
@@ -31,11 +33,90 @@ from scenic.train_lib import lr_schedules
 from scenic.train_lib import optimizers
 from scenic.train_lib import train_utils
 import comet_ml
-
+PyTree = Union[Mapping[str, Mapping], Any]
 def ids_str2ints(ids_str):
   return [int(v) for v in ids_str.split('_')] if ids_str else []
 def ids_ints2str(ids_ints):
   return '_'.join([str(v) for v in sorted(ids_ints)])
+
+def adhoc_match(m_key_str, m_params, model_flat):
+    print("match adhoc")
+    if m_key_str == "batch_stats/ResidualBlock_2/bn3/var":
+         model_flat[tuple(['batch_stats','bn3block_0', 'var'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_2/bn3/mean":
+        model_flat[tuple(['batch_stats','bn3block_0', 'mean'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_6/bn3/var":
+         model_flat[tuple(['batch_stats','bn3block_1', 'var'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_6/bn3/mean":
+        model_flat[tuple(['batch_stats','bn3block_1', 'mean'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_12/bn3/var":
+         model_flat[tuple(['batch_stats','bn3block_2', 'var'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_12/bn3/mean":
+        model_flat[tuple(['batch_stats','bn3block_2', 'mean'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_15/bn3/var":
+         model_flat[tuple(['batch_stats','bn3block_3', 'var'])] = m_params
+    elif m_key_str == "batch_stats/ResidualBlock_15/bn3/mean":
+        model_flat[tuple(['batch_stats','bn3block_3', 'mean'])] = m_params
+    return(model_flat)
+
+def _replace_dict(model: PyTree,
+                  restored: PyTree,
+                  ckpt_prefix_path: Optional[List[str]] = None,
+                  model_prefix_path: Optional[List[str]] = None,
+                  name_mapping: Optional[Mapping[str, str]] = None,
+                  skip_regex: Optional[str] = None) -> PyTree:
+  """Replaces values in model dictionary with restored ones from checkpoint."""
+  #import pdb; pdb.set_trace()
+  name_mapping = name_mapping or {}
+
+  model = flax.core.unfreeze(model)  # pytype: disable=wrong-arg-types
+  restored = flax.core.unfreeze(restored)  # pytype: disable=wrong-arg-types
+
+  if ckpt_prefix_path:
+    for p in ckpt_prefix_path:
+      restored = restored[p]
+
+  if model_prefix_path:
+    for p in reversed(model_prefix_path):
+      restored = {p: restored}
+
+  # Flatten nested parameters to a dict of str -> tensor. Keys are tuples
+  # from the path in the nested dictionary to the specific tensor. E.g.,
+  # {'a1': {'b1': t1, 'b2': t2}, 'a2': t3}
+  # -> {('a1', 'b1'): t1, ('a1', 'b2'): t2, ('a2',): t3}.
+  restored_flat = flax.traverse_util.flatten_dict(
+      dict(restored), keep_empty_nodes=True)
+  model_flat = flax.traverse_util.flatten_dict(
+      dict(model), keep_empty_nodes=True)
+  #import pdb;pdb.set_trace()
+# ('/init_bn').strip("/").split("/")
+  for m_key, m_params in restored_flat.items():
+    
+    # pytype: disable=attribute-error
+    for name, to_replace in name_mapping.items():
+      m_key = tuple(to_replace if k == name else k for k in m_key)
+    # pytype: enable=attribute-error
+    par = []
+    for elem in m_key:
+        elem = elem.strip('/').split('/')
+        par += elem
+    m_key = tuple(par)
+    m_key_str = '/'.join(m_key)
+    if m_key not in model_flat:
+      logging.warning('%s in checkpoint doesn\'t exist in model. Skip.',
+                      m_key_str)
+      print(m_key_str)
+      adhoc_match(m_key_str, m_params, model_flat)
+      continue
+    if skip_regex and re.findall(skip_regex, m_key_str):
+      logging.info('Skip loading parameter %s.', m_key_str)
+      continue
+    logging.info('Loading %s from checkpoint into model', m_key_str)
+    model_flat[m_key] = m_params
+
+  return flax.core.freeze(flax.traverse_util.unflatten_dict(model_flat))
+
+
 
 class ResidualBlock(nn.Module):
   """Bottleneck ResNet block."""
@@ -224,11 +305,59 @@ BLOCK_SIZE_OPTIONS = {
     18: ([2, 2, 2, 2], False),
     26: ([2, 2, 2, 2], True),
     34: ([3, 4, 6, 3], False),
-    50: ([3, 4, 6, 3], True), #False), 
+    50: ([3, 4, 6, 3], True), 
     101: ([3, 4, 23, 3], True),
     152: ([3, 8, 36, 3], True),
     200: ([3, 24, 36, 3], True)
 }
+
+def init_from_model_state(
+    train_state:Any,
+    pretrain_state: Any,
+    ckpt_prefix_path: Optional[List[str]] = None,
+    model_prefix_path: Optional[List[str]] = None,
+    name_mapping: Optional[Mapping[str, str]] = None,
+    skip_regex: Optional[str] = None) :
+    """Updates the train_state with data from pretrain_state.
+
+    Args:
+        train_state: A raw TrainState for the model.
+        pretrain_state: A TrainState that is loaded with parameters/state of
+          a  pretrained model.
+        ckpt_prefix_path: Prefix to restored model parameters.
+        model_prefix_path: Prefix to the parameters to replace in the subtree model.
+        name_mapping: Mapping from parameter names of checkpoint to this model.
+        skip_regex: If there is a parameter whose parent keys match the regex,
+          the parameter will not be replaced from pretrain_state.
+
+    Returns:
+        Updated train_state.
+    """
+    name_mapping = name_mapping or {}
+    restored_params = pretrain_state['params']
+    restored_model_state = pretrain_state['model_state']
+    # TODO(scenic): Add support for optionally restoring optimizer state.
+    if (restored_model_state is not None and train_state.model_state is not None and train_state.model_state):
+      if model_prefix_path:
+      # Insert model prefix after 'batch_stats'.
+        model_prefix_path = ['batch_stats'] + model_prefix_path
+        if 'batch_stats' in restored_model_state:
+            ckpt_prefix_path = ckpt_prefix_path or []
+            ckpt_prefix_path = ['batch_stats'] + ckpt_prefix_path
+      elif 'batch_stats' not in restored_model_state:  # Backward compatibility.
+        model_prefix_path = ['batch_stats']
+      if ckpt_prefix_path and ckpt_prefix_path[0] != 'batch_stats':
+        ckpt_prefix_path = ['batch_stats'] + ckpt_prefix_path
+
+      model_state = _replace_dict(train_state.model_state,
+                                restored_model_state,
+                                ckpt_prefix_path,
+                                model_prefix_path,
+                                name_mapping,
+                                skip_regex)
+    #train_state = train_state.replace(  # pytype: disable=attribute-error
+    #    model_state=model_state)
+    return model_state
 
 
 
@@ -278,8 +407,10 @@ class ResNetClassificationAdapterModel(ClassificationModel):
           restored_train_state.optimizer.target)
     else:
       params = flax.core.unfreeze(train_state.params)
-      restored_params = flax.core.unfreeze(restored_train_state.params)
+      restored_params = flax.core.unfreeze(restored_train_state["params"])
+    #import pdb; pdb.set_trace()
     for pname, pvalue in restored_params.items():
+      
       if pname == 'output_projection':
         # The `output_projection` is used as the name of the linear layer at the
         # head of the model that maps the representation to the label space.
@@ -287,7 +418,38 @@ class ResNetClassificationAdapterModel(ClassificationModel):
         # the label space is different.
         continue
       else:
-        params[pname] = pvalue
+
+        if pname=="stem_conv":
+            print("RESTORING STEM CONV RGB CHANNELS FROM INIT")
+
+            aa =params[pname]["kernel"].copy()
+            aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
+            params[pname] = {"kernel":aa}
+
+        else:
+            if pname in params.keys():
+                if params[pname].keys() == pvalue.keys():
+                    print("loading param ", pname, " into model")
+            
+                    params[pname] = pvalue
+                else:
+                    if "bn3" in pvalue.keys() and "bn3" not in params[pname].keys():
+                        bn3 = pvalue.pop("bn3")
+                        if pname == "ResidualBlock_2":
+                            params["bn3block_0"] = bn3
+                        elif pname == "ResidualBlock_6":
+                            params["bn3block_1"] = bn3
+                        elif pname == "ResidualBlock_12":
+                            params["bn3block_2"] = bn3
+                        elif pname == "ResidualBlock_15":
+                            params["bn3block_3"] = bn3
+                        else:
+                            print("ERROR")
+                    params[pname] = pvalue
+            else:
+                print("skip param", pname)
+
+
     logging.info('Parameter summary after initialising from train state:')
     debug_utils.log_param_shapes(params)
     if hasattr(train_state, 'optimizer'):
@@ -297,9 +459,10 @@ class ResNetClassificationAdapterModel(ClassificationModel):
               target=flax.core.freeze(params)),
           model_state=restored_train_state.model_state)
     else:
+      model_state = init_from_model_state(train_state,restored_train_state)
       return train_state.replace(
-          params=flax.core.freeze(params),
-          model_state=restored_train_state.model_state)
+          params=flax.core.freeze(params) ,
+          model_state=model_state)
 
 
 class ResNetClassificationModel(ClassificationModel):

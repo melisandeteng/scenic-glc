@@ -28,6 +28,7 @@ from scenic.projects.baselines import unet
 from scenic.projects.baselines import vit
 from scenic.projects.glc import resnet_adapter_trainer as resnet_adapter
 from scenic.projects.glc import vit_adapter
+from scenic.projects.glc import resnet_mhsa_adapter_trainer as resnet_mhsa_adapter
 
 
 ALL_MODELS = {}
@@ -49,6 +50,8 @@ CLASSIFICATION_MODELS = {
         bit_resnet.BitResNetMultiLabelClassificationModel,
     'resnet_adapter_classification':
         resnet_adapter.ResNetClassificationAdapterModel,
+    'resnet_mhsa_adapter_classification':
+        resnet_mhsa_adapter.ResNetClassificationAdapterModel,
     'vit_classification':
         vit.ViTClassificationModel,
     'vit_multilabel_classification':

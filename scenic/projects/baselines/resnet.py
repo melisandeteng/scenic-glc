@@ -133,6 +133,7 @@ class ResNet(nn.Module):
     kernel_init: Kernel initialization.
     bias_init: Bias initialization.
     dtype: Data type, e.g. jnp.float32.
+    adjust_xtra_c: if extra channels (else than RGB) adjust the initialization by first not taking them into account
   """
   num_outputs: Optional[int]
   num_filters: int = 64
@@ -140,13 +141,14 @@ class ResNet(nn.Module):
   kernel_init: Callable[..., Any] = initializers.lecun_normal()
   bias_init: Callable[..., Any] = initializers.zeros
   dtype: jnp.dtype = jnp.float32
+  adjust_xtra_c: bool=False
 
   @nn.compact
   def __call__(
-      self,
-      x: jnp.ndarray,
-      train: bool = False,
-      debug: bool = False) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    self,
+    x: jnp.ndarray,
+    train: bool = False,
+    debug: bool = False) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:
     """Applies ResNet model to the inputs.
 
     Args:
@@ -157,7 +159,11 @@ class ResNet(nn.Module):
 
     Returns:
        Un-normalized logits.
+    
     """
+     #   if adjust_xtra_c:
+     #       num_c = x.shape[-2]
+     #       num_xtra_c = 
     if self.num_layers not in BLOCK_SIZE_OPTIONS:
       raise ValueError('Please provide a valid number of layers')
     block_sizes, bottleneck = BLOCK_SIZE_OPTIONS[self.num_layers]
@@ -204,7 +210,7 @@ class ResNet(nn.Module):
           dtype=self.dtype,
           name='output_projection')(
               x)
-      return x #,  x_copy, x_copy_2
+      return x
     else:
       return representations
 
@@ -274,9 +280,9 @@ def init_from_model_state(
                                 model_prefix_path,
                                 name_mapping,
                                 skip_regex)
-    #train_state = train_state.replace(  # pytype: disable=attribute-error
-    #    model_state=model_state)
-    return model_state
+    train_state = train_state.replace(  # pytype: disable=attribute-error
+        model_state=model_state)
+    return train_state
 
 class ResNetClassificationModel(ClassificationModel):
   """Implemets the ResNet model for classification."""
@@ -340,6 +346,7 @@ class ResNetClassificationModel(ClassificationModel):
             params[pname] = {"kernel":aa}
 
         else:
+            print("loading ", pname)
             params[pname] = pvalue
     
     logging.info('Parameter summary after initialising from train state:')
@@ -353,10 +360,9 @@ class ResNetClassificationModel(ClassificationModel):
           model_state=restored_train_state.model_state)
     else:
       
-      model_state = init_from_model_state(train_state,restored_train_state)
+      train_state = init_from_model_state(train_state,restored_train_state)
       return train_state.replace(
-          params=flax.core.freeze(params) ,
-          model_state=model_state)
+          params=flax.core.freeze(params))
 
 
 class ResNetMultiLabelClassificationModel(MultiLabelClassificationModel):
