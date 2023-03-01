@@ -36,7 +36,7 @@ def get_config():
     }
     
     config.no_comet = False
-    config.comet= {"tags":["adapter", "resnet", "test_run"]}
+    config.comet= {"tags":["adapter", "not_freeze_stem", "resnet", "test_run"]}
     
     config.adapter_layers=""
     config.adapter_dim=32
@@ -58,7 +58,7 @@ def get_config():
     
     #config.optimizer.freeze_params_reg_exp = ... ("" freeze everything)
     config.optimizer_configs = ml_collections.ConfigDict()
-    config.optimizer_configs.freeze_params_reg_exp = "(ResidualBlock*|stem*|init_bn|bn3block*)"
+    config.optimizer_configs.freeze_params_reg_exp = "(ResidualBlock*|bn3block*)"
     config.optimizer_configs.momentum = 0.9
     config.l2_decay_factor = .00005
     config.max_grad_norm = None

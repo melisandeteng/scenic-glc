@@ -197,8 +197,9 @@ class ResNet(nn.Module):
       representations[f'stage_{i + 1}'] = x
 
     # Head.
-    #import pdb; pdb.set_trace()
+   
     if self.num_outputs:
+      print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD")
      # x_copy = jnp.copy(x)
       x = jnp.mean(x, axis=(1, 2))
       #x_copy_2 = jnp.copy(x)
@@ -255,9 +256,10 @@ def init_from_model_state(
     Returns:
         Updated train_state.
     """
-    #import pdb; pdb.set_trace()
+    
     name_mapping = name_mapping or {}
     restored_params = pretrain_state['params']
+    #restored_params.pop("pre_logits")
     restored_model_state = pretrain_state['model_state']
     
     # TODO(scenic): Add support for optionally restoring optimizer state.
@@ -280,9 +282,8 @@ def init_from_model_state(
                                 model_prefix_path,
                                 name_mapping,
                                 skip_regex)
-    train_state = train_state.replace(  # pytype: disable=attribute-error
-        model_state=model_state)
-    return train_state
+    
+    return model_state
 
 class ResNetClassificationModel(ClassificationModel):
   """Implemets the ResNet model for classification."""
@@ -302,7 +303,7 @@ class ResNetClassificationModel(ClassificationModel):
 
   def init_from_train_state(
       self, train_state: Any, restored_train_state: Any,
-      restored_model_cfg: ml_collections.ConfigDict) -> Any:
+      model_conf: ml_collections.ConfigDict) -> Any:
     """Updates the train_state with data from `restored_train_state`.
 
     This function is writen to be used for 'fine-tuning' experiments. Here, we
@@ -313,22 +314,24 @@ class ResNetClassificationModel(ClassificationModel):
       train_state: A raw TrainState for the model.
       restored_train_state: A TrainState that is loaded with parameters/state of
         a pretrained model.
-      restored_model_cfg: Configuration of the model from which the
-        `restored_train_state` come from. Usually used for some asserts.
+      model_conf: Configuration of the model from which the
+        `train_state` come from. Usually used for some asserts.
 
     Returns:
       Updated train_state.
     """
-    del restored_model_cfg
-    
+
+
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
       params = flax.core.unfreeze(train_state.optimizer.target)
       restored_params = flax.core.unfreeze(
           restored_train_state.optimizer.target)
+      restored_params.pop("pre_logits")
     else:
       params = flax.core.unfreeze(train_state.params)
       restored_params = flax.core.unfreeze(restored_train_state["params"])
+      restored_params.pop("pre_logits")
     for pname, pvalue in restored_params.items():
       if pname == 'output_projection':
         # The `output_projection` is used as the name of the linear layer at the
@@ -337,12 +340,14 @@ class ResNetClassificationModel(ClassificationModel):
         # the label space is different.
         continue
       else:
-        
+      
         if pname=="stem_conv":
             print("RESTORING STEM CONV RGB CHANNELS FROM INIT")
             
             aa =params[pname]["kernel"].copy()
             aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
+            if model_conf.init_new_channel_zero:
+                aa = aa.at[:,:,3:,:].set(0)
             params[pname] = {"kernel":aa}
 
         else:
@@ -351,7 +356,7 @@ class ResNetClassificationModel(ClassificationModel):
     
     logging.info('Parameter summary after initialising from train state:')
     debug_utils.log_param_shapes(params)
-    
+    train_state = train_state.replace(params=flax.core.freeze(params))
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
       return train_state.replace(
@@ -359,10 +364,11 @@ class ResNetClassificationModel(ClassificationModel):
               target=flax.core.freeze(params)),
           model_state=restored_train_state.model_state)
     else:
-      
-      train_state = init_from_model_state(train_state,restored_train_state)
+      print("INIT FROM MODEL STATE")
+      model_state = init_from_model_state(train_state,restored_train_state)
       return train_state.replace(
-          params=flax.core.freeze(params))
+          model_state=model_state)
+    
 
 
 class ResNetMultiLabelClassificationModel(MultiLabelClassificationModel):

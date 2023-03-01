@@ -89,6 +89,7 @@ def train_step(
     Returns:
       Updated state of training and computed metrics for logging.
     """
+    
     training_logs = {}
     new_rng, rng = jax.random.split(train_state.rng)
 
@@ -108,7 +109,7 @@ def train_step(
     dropout_rng = train_utils.bind_rng_to_host_device(
         rng, axis_name="batch", bind_to="device"
     )
-
+    #import pdb; pdb.set_trace()
     def training_loss_fn(params):
         
         variables = {"params": params, **train_state.model_state}
@@ -122,7 +123,8 @@ def train_step(
         )
         loss = loss_fn(logits, batch, variables["params"])
         return loss, (new_model_state, logits)
-
+    
+    
     compute_gradient_fn = jax.value_and_grad(training_loss_fn, has_aux=True)
     (train_cost, (new_model_state, logits)), grad = compute_gradient_fn(
         train_state.params
@@ -135,7 +137,7 @@ def train_step(
     if config.get("max_grad_norm") is not None:
         grad = clip_grads(grad, config.max_grad_norm)
 
-    updates, new_opt_state = x_state.tx.update(
+    updates, new_opt_state = train_state.tx.update(
         grad, train_state.opt_state, train_state.params
     )
     new_params = optax.apply_updates(train_state.params, updates)
@@ -331,6 +333,7 @@ def train(
     model = model_cls(config, dataset.meta_data)
     
     # Initialize model.
+    
     rng, init_rng = jax.random.split(rng)
     (params, model_state, num_trainable_params, gflops) = train_utils.initialize_model(
         model_def=model.flax_model,
@@ -343,7 +346,7 @@ def train(
         config=config,
         rngs=init_rng,
     )
-
+    #import pdb; pdb.set_trace()
     # Create optimizer.
     lr_fn = lr_schedules.get_learning_rate_fn(config)
     optimizer_config = optimizers.get_optax_optimizer_config(config)
@@ -370,8 +373,9 @@ def train(
     )
     start_step = train_state.global_step
     init_checkpoint_path = config.init_from.get("checkpoint_path")
-    #import pdb; pdb.set_trace()
+
     restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
+    
     if 'params' in restored_train_state:
         print("restored_train_state was trained using optax")
         restored_params = flax.core.freeze(restored_train_state['params'])
@@ -381,18 +385,10 @@ def train(
         # not convert the naming of pre-Linen checkpoints.
         restored_params = restored_train_state['optimizer']['target']["params"]
         restored_train_state["params"] = restored_params
-    import pdb;pdb.set_trace()
-    model_state=model.init_from_train_state(train_state, restored_train_state, config)
+    #import pdb; pdb.set_trace()
+    train_state=model.init_from_train_state(train_state, restored_train_state, config)
     
-    train_state = train_utils.TrainState(
-        global_step=0,
-        opt_state=opt_state,
-        tx=tx,
-        params=model_state.params,
-        model_state=model_state,
-        rng=train_rng,
-        metadata={"chrono": chrono.save()},
-    )
+
     """
     print("restore checkpoint")
     if config.checkpoint:
@@ -457,9 +453,7 @@ def train(
     total_steps, steps_per_epoch = train_utils.get_num_training_steps(
         config, dataset.meta_data
     )
-    #import pdb
-
-    #pdb.set_trace()
+    
     train_step_pmapped = jax.pmap(
         functools.partial(
             train_step,
