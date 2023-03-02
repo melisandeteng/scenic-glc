@@ -109,7 +109,7 @@ def train_step(
     dropout_rng = train_utils.bind_rng_to_host_device(
         rng, axis_name="batch", bind_to="device"
     )
-    #import pdb; pdb.set_trace()
+    #import odb; pdb.set_trace()
     def training_loss_fn(params):
         
         variables = {"params": params, **train_state.model_state}
@@ -806,7 +806,7 @@ def infer(*,
 
     # Create chrono class to track and store training statistics and metadata:
     chrono = train_utils.Chrono()
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     train_state = train_utils.TrainState(
         global_step=0,
         opt_state=opt_state,
