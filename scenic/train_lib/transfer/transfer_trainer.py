@@ -109,7 +109,7 @@ def train_step(
     dropout_rng = train_utils.bind_rng_to_host_device(
         rng, axis_name="batch", bind_to="device"
     )
-    #import odb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     def training_loss_fn(params):
         
         variables = {"params": params, **train_state.model_state}
