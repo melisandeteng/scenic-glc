@@ -6,7 +6,7 @@ r"""Default configs for ResNet on ImageNet.
 
 import ml_collections
 
-GLC_TRAIN_SIZE = 24 #1587395
+GLC_TRAIN_SIZE = 1587395
 
 
 def get_config():
@@ -21,21 +21,16 @@ def get_config():
 
     config.base_dir = (
       '/network/scratch/t/tengmeli/temp_glc/')
-            #"/mnt/disks/persist/" )
-            #'/home/tengmeli/')
-    """config.tables = {
-      'train': 'train_image.tfrecords',
-      'validation': 'val_image.tfrecords',
-      'test': 'test_image.tfrecords'
-    }"""
+
+
     config.tables = {
-      'train': 'train_sample.tfrecords',#'train_images_new3.tfrecords',
-      'validation': 'train_sample.tfrecords',#'val_images_new3.tfrecords',
-      'test': 'test_images_new.tfrecords'
+      'train': 'train_images_new6.tfrecords',
+      'validation':'val_images_new6.tfrecords',
+      'test': 'test_images_new5.tfrecords'
     }
     config.examples_per_subset = {
-      'train': 24, #1587395,
-      'validation': 24, # 40080,
+      'train':1587395,
+      'validation':40080,
       'test': 36421
     }
     
@@ -65,8 +60,8 @@ def get_config():
     config.max_grad_norm = None
     config.skip_scale_and_bias_regularization=True
     config.label_smoothing = None
-    config.num_training_epochs = 25
-    config.batch_size = 24#32 #32 #8192
+    config.num_training_epochs = 90
+    config.batch_size =  128 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
