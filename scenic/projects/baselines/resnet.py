@@ -133,7 +133,7 @@ class ResNet(nn.Module):
     kernel_init: Kernel initialization.
     bias_init: Bias initialization.
     dtype: Data type, e.g. jnp.float32.
-    adjust_xtra_c: if extra channels (else than RGB) adjust the initialization by first not taking them into account
+ 
   """
   num_outputs: Optional[int]
   num_filters: int = 64
@@ -141,7 +141,7 @@ class ResNet(nn.Module):
   kernel_init: Callable[..., Any] = initializers.lecun_normal()
   bias_init: Callable[..., Any] = initializers.zeros
   dtype: jnp.dtype = jnp.float32
-  adjust_xtra_c: bool=False
+
 
   @nn.compact
   def __call__(
@@ -161,9 +161,7 @@ class ResNet(nn.Module):
        Un-normalized logits.
     
     """
-     #   if adjust_xtra_c:
-     #       num_c = x.shape[-2]
-     #       num_xtra_c = 
+
     if self.num_layers not in BLOCK_SIZE_OPTIONS:
       raise ValueError('Please provide a valid number of layers')
     block_sizes, bottleneck = BLOCK_SIZE_OPTIONS[self.num_layers]
@@ -199,10 +197,8 @@ class ResNet(nn.Module):
     # Head.
    
     if self.num_outputs:
-      print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD")
-     # x_copy = jnp.copy(x)
+
       x = jnp.mean(x, axis=(1, 2))
-      #x_copy_2 = jnp.copy(x)
       x = nn_layers.IdentityLayer(name='pre_logits')(x)
       x = nn.Dense(
           self.num_outputs,
@@ -258,8 +254,7 @@ def init_from_model_state(
     """
     
     name_mapping = name_mapping or {}
-    restored_params = pretrain_state['params']
-    #restored_params.pop("pre_logits")
+    #restored_params = pretrain_state['params']
     restored_model_state = pretrain_state['model_state']
     
     # TODO(scenic): Add support for optionally restoring optimizer state.
@@ -327,11 +322,10 @@ class ResNetClassificationModel(ClassificationModel):
       params = flax.core.unfreeze(train_state.optimizer.target)
       restored_params = flax.core.unfreeze(
           restored_train_state.optimizer.target)
-      restored_params.pop("pre_logits")
+     
     else:
       params = flax.core.unfreeze(train_state.params)
       restored_params = flax.core.unfreeze(restored_train_state["params"])
-      restored_params.pop("pre_logits")
     for pname, pvalue in restored_params.items():
       if pname == 'output_projection':
         # The `output_projection` is used as the name of the linear layer at the
@@ -351,8 +345,11 @@ class ResNetClassificationModel(ClassificationModel):
             params[pname] = {"kernel":aa}
 
         else:
-            print("loading ", pname)
-            params[pname] = pvalue
+            if pname in params: 
+                print("loading ", pname)
+                params[pname] = pvalue
+            else: 
+                print("impossible to match parameter ", pname)
     
     logging.info('Parameter summary after initialising from train state:')
     debug_utils.log_param_shapes(params)
@@ -364,7 +361,7 @@ class ResNetClassificationModel(ClassificationModel):
               target=flax.core.freeze(params)),
           model_state=restored_train_state.model_state)
     else:
-      print("INIT FROM MODEL STATE")
+      print("Init model state")
       model_state = init_from_model_state(train_state,restored_train_state)
       return train_state.replace(
           model_state=model_state)
