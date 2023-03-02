@@ -373,7 +373,7 @@ def train(
     )
     start_step = train_state.global_step
     init_checkpoint_path = config.init_from.get("checkpoint_path")
-
+    #import pdb; pdb.set_trace()
     restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
     
     if 'params' in restored_train_state:
@@ -385,7 +385,7 @@ def train(
         # not convert the naming of pre-Linen checkpoints.
         restored_params = restored_train_state['optimizer']['target']["params"]
         restored_train_state["params"] = restored_params
-    #import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
     train_state=model.init_from_train_state(train_state, restored_train_state, config)
     
 
@@ -806,7 +806,7 @@ def infer(*,
 
     # Create chrono class to track and store training statistics and metadata:
     chrono = train_utils.Chrono()
-
+    import pdb; pdb.set_trace()
     train_state = train_utils.TrainState(
         global_step=0,
         opt_state=opt_state,
