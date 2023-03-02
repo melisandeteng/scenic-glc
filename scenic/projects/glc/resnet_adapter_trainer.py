@@ -381,7 +381,7 @@ class ResNetClassificationAdapterModel(ClassificationModel):
 
   def init_from_train_state(
       self, train_state: Any, restored_train_state: Any,
-      restored_model_cfg: ml_collections.ConfigDict) -> Any:
+      model_conf: ml_collections.ConfigDict) -> Any:
     """Updates the train_state with data from `restored_train_state`.
 
     This function is writen to be used for 'fine-tuning' experiments. Here, we
@@ -399,7 +399,7 @@ class ResNetClassificationAdapterModel(ClassificationModel):
       Updated train_state.
     """
     print("INITIALIZING RESNET ADAPTER MODEL")
-    del restored_model_cfg
+   
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
       params = flax.core.unfreeze(train_state.optimizer.target)
@@ -424,6 +424,9 @@ class ResNetClassificationAdapterModel(ClassificationModel):
 
             aa =params[pname]["kernel"].copy()
             aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
+             if model_conf.init_new_channel_zero:
+                aa = aa.at[:,:,3:,:].set(0)
+         
             params[pname] = {"kernel":aa}
 
         else:

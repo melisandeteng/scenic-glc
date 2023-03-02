@@ -346,7 +346,7 @@ def train(
         config=config,
         rngs=init_rng,
     )
-    #import pdb; pdb.set_trace()
+  
     # Create optimizer.
     lr_fn = lr_schedules.get_learning_rate_fn(config)
     optimizer_config = optimizers.get_optax_optimizer_config(config)
@@ -373,7 +373,7 @@ def train(
     )
     start_step = train_state.global_step
     init_checkpoint_path = config.init_from.get("checkpoint_path")
-    #import pdb; pdb.set_trace()
+
     restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
     
     if 'params' in restored_train_state:
@@ -385,7 +385,7 @@ def train(
         # not convert the naming of pre-Linen checkpoints.
         restored_params = restored_train_state['optimizer']['target']["params"]
         restored_train_state["params"] = restored_params
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     train_state=model.init_from_train_state(train_state, restored_train_state, config)
     
 
