@@ -36,7 +36,7 @@ class BottleneckAdapterParallel(nn.Module):
     
   @nn.compact
   def __call__(self, x):
-
+    #import pdb; pdb.set_trace()
     hidden_dim = self.hidden_dim
     adapter_dim = self.adapter_dim
     strides = self.strides
@@ -81,8 +81,8 @@ class MHSAAdapterParallel(nn.Module):
   """
   mlp_dim: int
   num_heads: int
-  filters: int
-  strides: Any
+  #filters: int
+  #strides: Any
   dtype: Any = jnp.float32
   qkv_features: int = None
   dropout_rate: float = 0.1
@@ -90,6 +90,8 @@ class MHSAAdapterParallel(nn.Module):
   stochastic_depth: float = 0.0
   bottleneck: bool=True
   runavg: bool=True
+  out_features: Any= None 
+  shared_MHSA: bool=False
 
   @nn.compact
   def __call__(self, inputs: jnp.ndarray, deterministic: bool) -> jnp.ndarray:
@@ -104,8 +106,8 @@ class MHSAAdapterParallel(nn.Module):
     """
     # Attention block.
     #assert inputs.ndim == 3
-    needs_projection = inputs.shape[-1] != self.filters * 4 or self.strides != (1, 1)
-    nout = self.filters * 4 if self.bottleneck else self.filters
+    #needs_projection = inputs.shape[-1] != self.filters * 4 or self.strides != (1, 1)
+    
     
     batch_norm = functools.partial(
         nn.BatchNorm,
@@ -114,15 +116,16 @@ class MHSAAdapterParallel(nn.Module):
         epsilon=1e-5,
         dtype=self.dtype)
     conv = functools.partial(nn.Conv, use_bias=False, dtype=self.dtype)
-
-    residual = inputs
+    
+    
+    x= inputs
+    print("inputs to MHSA shape", x.shape)
     #if needs_projection:
     #  print("needs projection")
     #  residual = conv(nout, (1, 1), self.strides, name='proj_conv')(residual)
     #  residual = batch_norm(name='proj_bn')(residual)
-
-      #residual = batch_norm(name='proj_bn')(residual)
-    x = nn.LayerNorm(dtype=self.dtype)(residual)
+    if self.shared_MHSA is False:
+        x = nn.LayerNorm(dtype=self.dtype)(x)
     x = nn.MultiHeadDotProductAttention(
         num_heads=self.num_heads,
         qkv_features = self.qkv_features,
@@ -130,11 +133,20 @@ class MHSAAdapterParallel(nn.Module):
         kernel_init=nn.initializers.xavier_uniform(),
         broadcast_dropout=False,
         deterministic=deterministic,
-        dropout_rate=self.attention_dropout_rate)(x, x)
-    x = nn.Dropout(rate=self.dropout_rate)(x, deterministic)
-    x = nn_layers.StochasticDepth(rate=self.stochastic_depth)(x, deterministic)
-    x = x + residual
-    x = conv(nout, (1, 1), self.strides, name='proj_conv')(x)
+        dropout_rate=self.attention_dropout_rate, 
+        out_features=self.out_features)(x, x)
+    
+    print("outputs to MHSA shape", x.shape)
+    #x = nn.Dropout(rate=self.dropout_rate)(x, deterministic)
+    #x = nn_layers.StochasticDepth(rate=self.stochastic_depth)(x, deterministic)
+    #if self.out_features != inputs.shape[-1]:
+    #    print("Projecting adapter output to match residual size")
+    #    x = conv(residual.shape[-1], (1, 1), name='proj_conv')(x)
+    #    print("outputs projection in MHSA shape", x.shape)
+    #remove x = x+residual because this is the adapter block
+    #x = x + residual
+    #nout = self.filters * 4 if self.bottleneck else self.filters
+    #x = conv(nout, (1, 1), self.strides, name='proj_conv')(x)
 
     return(x)
     """
