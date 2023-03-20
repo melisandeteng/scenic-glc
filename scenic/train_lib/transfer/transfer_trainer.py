@@ -806,7 +806,7 @@ def infer(*,
 
     # Create chrono class to track and store training statistics and metadata:
     chrono = train_utils.Chrono()
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     train_state = train_utils.TrainState(
         global_step=0,
         opt_state=opt_state,
