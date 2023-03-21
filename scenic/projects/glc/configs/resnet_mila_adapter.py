@@ -35,14 +35,16 @@ def get_config():
       'test': 36421
     }
     
-    config.no_comet = False
-    config.comet= {"tags":["adapter", "not_freeze_stem", "resnet", "test_run"]}
+    config.no_comet = True #False
+    config.comet= {"tags":["adapter",  "change_lr_schedule", "altitude","resnet"]}
     
     config.adapter_layers=""
     config.adapter_dim=32
     
     config.onehot_labels= False   
-    config.bands = ["rgb", "near_ir"] #, "near_ir"]
+    config.bands = ["rgb", "near_ir", "altitude"] #, "near_ir"]
+    config.init_new_channel_zero = False
+    
     config.num_classes = 17035
     config.crop_size=224
     config.data_augmentations = ["glc_default"]
@@ -58,13 +60,13 @@ def get_config():
     
     #config.optimizer.freeze_params_reg_exp = ... ("" freeze everything)
     config.optimizer_configs = ml_collections.ConfigDict()
-    config.optimizer_configs.freeze_params_reg_exp = "(ResidualBlock*|bn3block*)"
+    config.optimizer_configs.freeze_params_reg_exp = "(ResidualBlock*)"
     config.optimizer_configs.momentum = 0.9
     config.l2_decay_factor = .00005
     config.max_grad_norm = None
     config.label_smoothing = None
     config.num_training_epochs = 90
-    config.batch_size = 128#64 #32 #8192
+    config.batch_size = 128 #64 #32 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
@@ -80,12 +82,12 @@ def get_config():
     #config.lr_configs.warmup_steps = 7 * steps_per_epoch
     #config.lr_configs.steps_per_cycle = total_steps
     #config.lr_configs.base_learning_rate = base_lr
-    base_lr = 0.01 #* config.batch_size / 256
+    base_lr = 0.0025 #* config.batch_size / 256
     # setting 'steps_per_cycle' to total_steps basically means non-cycling cosine.
     config.lr_configs = ml_collections.ConfigDict()
     config.lr_configs.learning_rate_schedule = 'compound'
-    config.lr_configs.factors = 'constant' # * cosine_decay * linear_warmup'
-    config.lr_configs.warmup_steps = 7 * steps_per_epoch
+    config.lr_configs.factors = 'constant * cosine_decay * linear_warmup'
+    config.lr_configs.warmup_steps = 2 * steps_per_epoch
     config.lr_configs.steps_per_cycle = total_steps
     config.lr_configs.base_learning_rate = base_lr
     

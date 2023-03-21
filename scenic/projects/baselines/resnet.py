@@ -319,6 +319,7 @@ class ResNetClassificationModel(ClassificationModel):
 
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
+      
       params = flax.core.unfreeze(train_state.optimizer.target)
       restored_params = flax.core.unfreeze(
           restored_train_state.optimizer.target)
@@ -341,6 +342,7 @@ class ResNetClassificationModel(ClassificationModel):
             aa =params[pname]["kernel"].copy()
             aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
             if model_conf.init_new_channel_zero:
+                print("Initialize new channel to zero")
                 aa = aa.at[:,:,3:,:].set(0)
             params[pname] = {"kernel":aa}
 
@@ -355,6 +357,7 @@ class ResNetClassificationModel(ClassificationModel):
     debug_utils.log_param_shapes(params)
     train_state = train_state.replace(params=flax.core.freeze(params))
     if hasattr(train_state, 'optimizer'):
+      print("has_attr optimizer")
       # TODO(dehghani): Remove support for flax optim.
       return train_state.replace(
           optimizer=train_state.optimizer.replace(

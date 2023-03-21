@@ -163,8 +163,10 @@ class ResidualBlock(nn.Module):
     else:
       y = conv(nout, (3, 3), padding=[(1, 1), (1, 1)], name='conv3')(y)
     if add_bn: 
-        y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(y)
+        y = batch_norm(name='bn3')(y) #, scale_init=nn.initializers.zeros)(y)
         y = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
+    else:
+        y = batch_norm(name='bn3')(y)#, scale_init=nn.initializers.zeros)(y)
     return y, residual
 
 class Scaling(nn.Module):
@@ -211,7 +213,9 @@ class ResNet(nn.Module):
   attention_dropout_rate: float = 0.1
   stochastic_depth: float = 0.0
   qkv_features: Any=None
-    
+  share_adapter: bool=False
+  add_bn_extra: bool=False
+
 
   @nn.compact
   def __call__(
@@ -233,7 +237,10 @@ class ResNet(nn.Module):
     if self.num_layers not in BLOCK_SIZE_OPTIONS:
       raise ValueError('Please provide a valid number of layers')
     block_sizes, bottleneck = BLOCK_SIZE_OPTIONS[self.num_layers]
-   
+    
+    #import pdb; pdb.set_trace()
+    
+    conv = functools.partial(nn.Conv, use_bias=False, dtype=self.dtype)
     
     batch_norm = functools.partial(
         nn.BatchNorm,
@@ -264,41 +271,96 @@ class ResNet(nn.Module):
     residual_block = functools.partial(
         ResidualBlock, dtype=self.dtype, bottleneck=bottleneck)
     representations = {'stem': x}
-    #import pdb; pdb.set_trace()
-    for i, block_size in enumerate(block_sizes):
-        
-      strides_adapter = (2, 2) if i > 0 else (1,1)
-      
-
-      x_copy = x.copy()
-      print(x.shape[-1] if i==0 else x.shape[-1]*2)
-      
-      for j in range(block_size):
-          strides = (2, 2) if i > 0 and j == 0 else (1, 1)
-          filters = self.num_filters * 2**i
     
-          x, residual = residual_block(filters=filters, strides=strides)(x, train,add_bn=(j!=block_size-1))
-         # if j != (block_size-1):
-         #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
-          #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
-      representations[f'stage_{i + 1}'] = x
-      #print(x.shape)
-      
-      y =  MHSAAdapterParallel(
-            mlp_dim=self.mlp_dim[i],
-            num_heads=self.num_heads[i],
-            filters = filters, 
-            strides = strides_adapter,
-            runavg = not train,
-            bottleneck= bottleneck,
-            qkv_features = self.qkv_features
-            )(x_copy,deterministic=not train)  
+    
+    
+    if self.share_adapter:
+        #import pdb; pdb.set_trace()
+        init_size = x.shape[-1]
+        adapter =  MHSAAdapterParallel(
+                mlp_dim=self.mlp_dim[0],
+                num_heads=self.num_heads[0],
+                #filters = filters, 
+                #strides = strides_adapter,
+                runavg = not train,
+                bottleneck= bottleneck,
+                qkv_features = self.qkv_features,
+                out_features = x.shape[-1],
+                shared_MHSA = True
+                )
+        for i, block_size in enumerate(block_sizes):
+
+          strides_adapter = (2, 2) if i > 0 else (1,1)
+
+
+          x_copy = x.copy()
+          print(x.shape[-1] if i==0 else x.shape[-1]*2)
+          print("block input", x_copy.shape)
+          for j in range(block_size):
+              strides = (2, 2) if i > 0 and j == 0 else (1, 1)
+              filters = self.num_filters * 2**i
         
-      #print(y.shape)
-      #print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
-      x = x+y
-      x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
-      x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(residual + x))
+              x, residual = residual_block(filters=filters, strides=strides)(x, train,add_bn=(j!=block_size-1))
+             
+             # if j != (block_size-1):
+             #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
+              #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
+          print("resnet block output", x.shape)
+          representations[f'stage_{i + 1}'] = x
+          y = conv(init_size, (1, 1))(x_copy) 
+          print("adapterinput", y.shape)
+          y = nn.LayerNorm(dtype=self.dtype)(y)
+          y = adapter(y,deterministic=not train)  
+          nout = filters * 4 if bottleneck else filters
+          y = conv(nout, (1,1), strides_adapter, name='proj_conv_'+str(i))(y)
+          print("output", y.shape)
+          #x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
+          
+          x = residual + x+y
+          if self.add_bn_extra:
+              x = batch_norm(name='bn3'+ f"block_{i}")(x)
+          x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(x))
+        
+        
+    else:
+        for i, block_size in enumerate(block_sizes):
+
+          strides_adapter = (2, 2) if i > 0 else (1,1)
+
+
+          x_copy = x.copy()
+          print(x.shape[-1] if i==0 else x.shape[-1]*2)
+
+          for j in range(block_size):
+              strides = (2, 2) if i > 0 and j == 0 else (1, 1)
+              filters = self.num_filters * 2**i
+
+              x, residual = residual_block(filters=filters, strides=strides)(x, train,add_bn=(j!=block_size-1))
+             # if j != (block_size-1):
+             #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
+              #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
+          representations[f'stage_{i + 1}'] = x
+          #print(x.shape)
+          #y = nn.LayerNorm(dtype=self.dtype)(x_copy)
+          y =  MHSAAdapterParallel(
+                mlp_dim=self.mlp_dim[i],
+                num_heads=self.num_heads[i],
+                #filters = filters, 
+                #strides = strides_adapter,
+                runavg = not train,
+                bottleneck= bottleneck,
+                qkv_features = self.qkv_features,
+                shared_MHSA = False
+          )(x_copy,deterministic=not train)  
+          nout = filters * 4 if bottleneck else filters
+          y = conv(nout, (1, 1), strides_adapter, name='proj_conv_'+str(i))(y)
+          #print(y.shape)
+          #print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
+          x = x+y+residual
+          if self.add_bn_extra:
+              x = batch_norm(name='bn3'+ f"block_{i}")(x)
+          
+          x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(x))
 
     # Head.
     if self.num_outputs:
@@ -396,7 +458,9 @@ class ResNetClassificationAdapterModel(ClassificationModel):
         qkv_features = self.config.get("adapter_qkv_features", None),
         dtype=model_dtype,
         mlp_dim= self.config.adapter_mlp_dim, 
-        num_heads=self.config.adapter_num_heads)
+        num_heads=self.config.adapter_num_heads,
+        share_adapter= self.config.get("share_adapter", False),
+        add_bn_extra= self.config.get("add_bn_extra", False),)
 
     """dropout_rate: float = 0.1
       attention_dropout_rate: float = 0.1
@@ -489,6 +553,7 @@ class ResNetClassificationAdapterModel(ClassificationModel):
 
     logging.info('Parameter summary after initialising from train state:')
     debug_utils.log_param_shapes(params)
+    #import pdb; pdb.set_trace()
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
       return train_state.replace(
@@ -671,7 +736,7 @@ def train_step(
     )
 
     def training_loss_fn(params, fixed_params):
-        import pdb; pdb.set_trace()
+        
         variables = {"params": params, **train_state.model_state.model_state}
         logits, new_model_state = flax_model.apply(
             variables,

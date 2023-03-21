@@ -164,8 +164,10 @@ class ResidualBlock(nn.Module):
     else:
       y = conv(nout, (3, 3), padding=[(1, 1), (1, 1)], name='conv3')(y)
     if add_bn: 
-        y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(y)
+        y = batch_norm(name='bn3')(y) #, scale_init=nn.initializers.zeros)(y)
         y = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
+    else: 
+        y = batch_norm(name='bn3')(y) #, scale_init=nn.initializers.zeros)(y)
     return y, residual
 
 
@@ -259,12 +261,13 @@ class ResNet(nn.Module):
           strides = (2, 2) if i > 0 and j == 0 else (1, 1)
           filters = self.num_filters * 2**i
     
-          x, residual = residual_block(filters=filters, strides=strides)(x, train,add_bn=(j!=block_size-1))
+          x, residual = residual_block(filters=filters, strides=strides)(x, train,add_bn=j!=block_size-1)
          # if j != (block_size-1):
          #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
           #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
       representations[f'stage_{i + 1}'] = x
       #print(x.shape)
+      
       
       y =  BottleneckAdapterParallel(
             adapter_dim=self.adapter_dim,
@@ -273,9 +276,11 @@ class ResNet(nn.Module):
             )(x_copy)  
       #print(y.shape)
       #print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
-      x = x+y
-      x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
-      x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(residual + x))
+      #x = x+y
+      #x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
+     # x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(residual + x))
+      x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(y + x + residual))
+
 
     # Head.
     if self.num_outputs:
@@ -424,7 +429,8 @@ class ResNetClassificationAdapterModel(ClassificationModel):
 
             aa =params[pname]["kernel"].copy()
             aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
-             if model_conf.init_new_channel_zero:
+            if model_conf.init_new_channel_zero:
+                print("init new channels to zero")
                 aa = aa.at[:,:,3:,:].set(0)
          
             params[pname] = {"kernel":aa}
