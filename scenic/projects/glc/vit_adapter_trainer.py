@@ -107,16 +107,16 @@ def train_step(
       rng, axis_name='batch', bind_to='device')
 
     def training_loss_fn(params):
-    variables = {'params': params, **train_state.model_state}
-    logits, new_model_state = flax_model.apply(
-        variables,
-        batch['inputs'],
-        mutable=['batch_stats'],
-        train=True,
-        rngs={'dropout': dropout_rng},
-        debug=debug)
-    loss = loss_fn(logits, batch, variables['params'])
-    return loss, (new_model_state, logits)
+      variables = {'params': params, **train_state.model_state}
+      logits, new_model_state = flax_model.apply(
+          variables,
+          batch['inputs'],
+          mutable=['batch_stats'],
+          train=True,
+          rngs={'dropout': dropout_rng},
+          debug=debug)
+      loss = loss_fn(logits, batch, variables['params'])
+      return loss, (new_model_state, logits)
 
     compute_gradient_fn = jax.value_and_grad(training_loss_fn, has_aux=True)
     (train_cost, (new_model_state,
