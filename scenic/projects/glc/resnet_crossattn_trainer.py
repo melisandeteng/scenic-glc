@@ -287,7 +287,6 @@ class ResNet(nn.Module):
             if y.shape != x.shape:
                 y = conv(nout, (1, 1), strides_adapter, name="proj_conv_" + str(i))(y)
                 print("output", y.shape)
-            # y = conv(nout, (1, 1), strides_adapter, name="proj_conv_" + str(i))(y)
 
             x = x + y + residual
             if self.add_bn_extra:
