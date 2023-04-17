@@ -64,10 +64,12 @@ def classification_metrics_function(
     A dict of metrics, in which keys are metrics name and values are tuples of
     (metric, normalizer).
   """
+
   if target_is_onehot:
     one_hot_targets = batch['label']
   else:
     one_hot_targets = common_utils.onehot(batch['label'], logits.shape[-1])
+  
   weights = batch.get('batch_mask')  # batch_mask might not be defined
 
   # This psum is required to correctly evaluate with multihost. Only host 0
@@ -150,6 +152,7 @@ class ClassificationModel(base_model.BaseModel):
     Returns:
       Total loss.
     """
+    
     weights = batch.get('batch_mask')
 
     if self.dataset_meta_data.get('target_is_onehot', False):

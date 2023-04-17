@@ -38,8 +38,15 @@ def get_config():
     config.no_comet = True #False
     config.comet= {"tags":["adapter",  "change_lr_schedule", "altitude","resnet"]}
     
-    config.adapter_layers=""
-    config.adapter_dim=32
+    #choose adapter name between None, "bottleneck","MHSA","channel_MHSA", "cross_attention"
+    config.adapter_name = "bottleneck"
+
+    config.adapter_config = {"bottleneck" :{"adapter_layers":, "adapter_dim"=32,"shared":False},
+                             "MHSA":{"num_heads": 4, "qkv_features":128, "shared_MHSA":False, "shared": False},
+                             "channel_MHSA":{"num_heads": 4, "qkv_features":128, "shared":False},
+                             "cross_attention":{"num_heads": 4, "head_dim": 32, "shared":False}
+                            }
+    
     
     config.onehot_labels= False   
     config.bands = ["rgb", "near_ir", "altitude"] #, "near_ir"]
@@ -68,7 +75,7 @@ def get_config():
     config.num_training_epochs = 90
     config.batch_size = 128 #64 #32 #8192
     config.rng_seed = 0
-    config.init_head_bias = -10.0
+    config.init_head_bias = 0.0
     
     config.num_shards=1    
     # Learning rate.

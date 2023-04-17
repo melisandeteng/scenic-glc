@@ -36,11 +36,13 @@ def parse_tfr_element(element, bands="all", subset="train"):
     height = content["height"]
     width = content["width"]
     raw_image = content["rgb"]
+    
     if subset != "test":
         # label = tf.expand_dims(content['target'], axis=0)
         label = content["target"]
 
     # get our 'feature'-- our image -- and reshape it appropriately
+
     feature_rgb = tf.dtypes.cast(
         tf.image.decode_image(raw_image, channels=3, dtype=tf.dtypes.uint8), tf.float32
     )

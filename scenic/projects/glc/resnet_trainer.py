@@ -32,6 +32,13 @@ PyTree = Union[Mapping[str, Mapping], Any]
 
 
 
+def ids_str2ints(ids_str):
+    return [int(v) for v in ids_str.split("_")] if ids_str else []
+
+
+def ids_ints2str(ids_ints):
+    return "_".join([str(v) for v in sorted(ids_ints)])
+
 def _replace_dict(
     model: PyTree,
     restored: PyTree,
@@ -162,11 +169,11 @@ ADAPTERS = {
     "cross_attention":  adapters.CrossAttentionAdapter
 }
 
-def get_adapter(adapter_name, adapter_config)-->Type[nn.Module]:
+def get_adapter(adapter_name, adapter_config): # --> Type[nn.Module]:
     if adapter_name is None:
         return None
     adapter = ADAPTERS[adapter_name]
-    return adapter(**adapter_config)
+    return adapter(**adapter_config[adapter_name])
 
 
 class ResNet(nn.Module):
@@ -209,7 +216,7 @@ class ResNet(nn.Module):
         if self.num_layers not in BLOCK_SIZE_OPTIONS:
             raise ValueError("Please provide a valid number of layers")
         block_sizes, bottleneck = BLOCK_SIZE_OPTIONS[self.num_layers]
-        adapter_layers_ids = ids_str2ints(self.adapter_layers)  # <MOD>
+         # <MOD>
 
         batch_norm = functools.partial(
             nn.BatchNorm,
@@ -242,7 +249,8 @@ class ResNet(nn.Module):
             ResidualBlock, dtype=self.dtype, bottleneck=bottleneck
         )
         representations = {"stem": x}
-
+        
+        
         adapter = get_adapter(self.adapter_name, self.adapter_config)
 
         for i, block_size in enumerate(block_sizes):
@@ -266,13 +274,18 @@ class ResNet(nn.Module):
             representations[f"stage_{i + 1}"] = x
             representations[f"stage_residual_{i + 1}"] = x
             if  adapter is not None:
-            
-                y = adapter(x_copy)
-                representations[f"stage_adapter_{i + 1}"] = y
-                x = nn_layers.IdentityLayer(name="relu3" + f"_{i}")(
-                    nn.relu(y + x + residual)
-                )
-            
+                if self.adapter_config.shared:
+                    y = adapter(x_copy, deterministic=not train)
+                    representations[f"stage_adapter_{i + 1}"] = y
+                    x = nn_layers.IdentityLayer(name="relu3" + f"_{i}")(
+                        nn.relu(y + x + residual)
+                    )
+                else:
+                    y = get_adapter(self.adapter_name, self.adapter_config)(x_copy, deterministic=not train)
+                    representations[f"stage_adapter_{i + 1}"] = y
+                    x = nn_layers.IdentityLayer(name="relu3" + f"_{i}")(
+                        nn.relu(y + x + residual)
+                    )
 
         if self.num_outputs:
             x = jnp.mean(x, axis=(1, 2))
@@ -288,6 +301,7 @@ class ResNet(nn.Module):
         else:
             return representations
         
+#adapter_layers_ids = ids_str2ints(self.adapter_layers) 
 
 def init_from_model_state(
     train_state: Any,
@@ -405,6 +419,7 @@ class ResNetClassificationAdapterModel(ClassificationModel):
                 # head of the model that maps the representation to the label space.
                 # By default, for finetuning to another dataset, we drop this layer as
                 # the label space is different.
+                #params[pname]= pvalue
                 continue
             else:
 

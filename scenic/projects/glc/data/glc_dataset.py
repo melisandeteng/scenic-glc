@@ -27,18 +27,19 @@ EVAL_IMAGES = 40080
 TEST_IMAGES = 36421
 
 MEAN_GLC = {
-    "rgb": [106.94150444, 114.87315837, 104.52826283],
+    "rgb":[106.94150444, 114.87315837, 104.52826283],  #[123.675, 116.28, 103.53] , #[106.94150444, 114.87315837, 104.52826283],
     "near_ir": [131.0458],
     "altitude": [298.1693],
     "landcover": [0],
 }
 STD_GLC = {
-    "rgb": [50.59516823, 44.13010964, 41.84300729],
+    "rgb": [50.59516823, 44.13010964, 41.84300729], #[58.395, 57.12, 57.375], #[50.59516823, 44.13010964, 41.84300729],
     "near_ir": [53.0884],
     "altitude": [459.3285],
     "landcover": [34],
 }
 
+    
 
 class TFRecordDatasetFactory(abc.ABC):
     """Reader for TFRecords
@@ -154,10 +155,7 @@ def glc_load_split(
     options = tf.data.Options()
     options.threading.private_threadpool_size = 48
     dataset = dataset.with_options(options)
-    # print("BBBBBBB", next(iter(dataset)))
-    # import pdb; pdb.set_trace()
-    # dataset = dataset.cache()
-    # a = next(iter(dataset))
+
     if subset == "train":
         dataset = dataset.repeat()
         dataset = dataset.map(lambda x: transform(x))
@@ -165,6 +163,7 @@ def glc_load_split(
         dataset = dataset.batch(batch_size, drop_remainder=subset == "train")
 
     else:
+      
         dataset = dataset.map(lambda x: transform(x))
         dataset = dataset.batch(batch_size, drop_remainder=False)
         dataset = dataset.repeat()
@@ -273,7 +272,7 @@ def get_dataset(
     validate_config("examples_per_subset")
     validate_config("num_classes")
 
-    onehot_labels = dataset_configs.get("onehot_labels", True)
+    onehot_labels = dataset_configs.get("onehot_labels", False)
     crop_size = dataset_configs.get("crop_size", 224)
     data_augmentations = dataset_configs.get("data_augmentations", None)
     num_channels = get_num_channels(bands)

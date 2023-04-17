@@ -48,7 +48,7 @@ class BottleneckAdapterParallel(nn.Module):
     strides: Tuple[int, int] = (1, 1)
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x, deterministic=None):
         # import pdb; pdb.set_trace()
         hidden_dim = self.hidden_dim
         adapter_dim = self.adapter_dim

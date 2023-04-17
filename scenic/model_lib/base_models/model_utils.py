@@ -107,6 +107,8 @@ def weighted_correctly_classified(
   return correct.astype(jnp.int32)
 
 
+
+
 def weighted_top_one_correctly_classified(
     logits: jnp.ndarray,
     multi_hot_targets: jnp.ndarray,
@@ -170,6 +172,7 @@ def weighted_topk_correctly_classified(logits: jnp.ndarray,
     The number of correctly classified examples in the given batch, given top
     k prediction.
   """
+
   if logits.ndim != multi_hot_target.ndim:
     raise ValueError(
         'Incorrect shapes. Got shape %s logits and %s one_hot_target' %
@@ -189,7 +192,8 @@ def weighted_topk_correctly_classified(logits: jnp.ndarray,
   if weights is not None:
     correct = apply_weights(correct, weights)
 
-  return correct.astype(jnp.int32)
+  return (1-correct).astype(jnp.int32)
+
 
 
 def weighted_recall(logits: Array, multi_hot_target: Array,
