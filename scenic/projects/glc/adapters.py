@@ -46,6 +46,7 @@ class BottleneckAdapterParallel(nn.Module):
     hidden_dim: int
     adapter_dim: int
     strides: Tuple[int, int] = (1, 1)
+    shared: bool=False
 
     @nn.compact
     def __call__(self, x, deterministic=None):
@@ -106,7 +107,7 @@ class MHSAAdapterParallel(nn.Module):
     runavg: bool = True
     out_features: Any = None
     shared_MHSA: bool = False
-
+    shared: bool=False
     @nn.compact
     def __call__(self, inputs: jnp.ndarray, deterministic: bool) -> jnp.ndarray:
         """Applies Encoder1DBlock module.
@@ -189,7 +190,7 @@ class MHSAChannelsAdapterParallel(nn.Module):
     attention_dropout_rate: float = 0.1
     deterministic: bool = False
     out_features: Any = None
-
+    shared: bool=False
     @nn.compact
     def __call__(self, inputs: jnp.ndarray, deterministic: bool) -> jnp.ndarray:
         # flatten h,w

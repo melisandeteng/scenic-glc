@@ -32,6 +32,7 @@ from scenic.projects.glc import resnet_mhsa_adapter_trainer as resnet_mhsa_adapt
 from scenic.projects.glc import resnet_adapters_trainer as resnet_adapters
 from scenic.projects.glc import resnet_crossattn_trainer as resnet_crossattn
 from scenic.projects.glc import resnet_trainer as resnet_trainer
+from scenic.projects.glc import resnet_trainer_debug as resnet_trainer_debug
 ALL_MODELS = {}
 
 CLASSIFICATION_MODELS = {
@@ -43,6 +44,7 @@ CLASSIFICATION_MODELS = {
     "bit_resnet_classification": bit_resnet.BitResNetClassificationModel,
     "bit_resnet_multilabel_classification": bit_resnet.BitResNetMultiLabelClassificationModel,
     "resnet_adapter":resnet_trainer.ResNetClassificationAdapterModel,
+    
     "resnet_adapter_classification": resnet_trainer.ResNetClassificationAdapterModel,
     "resnet_mhsa_adapter_classification": resnet_mhsa_adapter.ResNetClassificationAdapterModel,
     "resnet_channel_mhsa_adapter_classification": resnet_adapters.ResNetClassificationAdapterModel,
@@ -52,6 +54,8 @@ CLASSIFICATION_MODELS = {
     "hybrid_vit_multilabel_classification": hybrid_vit.HybridViTMultiLabelClassificationModel,
     "vit_adapter_classification": vit_adapter.ViTClassificationAdapterModel,
     "mixer_multilabel_classification": mixer.MixerMultiLabelClassificationModel,
+    
+    "resnet_adapter_debug":resnet_trainer_debug.ResNetClassificationAdapterModel,
 }
 
 SEGMENTATION_MODELS = {

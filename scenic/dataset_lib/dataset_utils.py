@@ -222,8 +222,8 @@ def augment_random_crop_flip(image,
     Returns:
     Augmented image.
     """
-    
-    #h, w, c = image.shape #get_shape().as_list()
+    #import pdb; pdb.set_trace()
+    #h, w, c = image.size   #.as_list() #get_shape().as_list()
     height = height #or h
     width = width #or w
     num_channels = num_channels #or c
