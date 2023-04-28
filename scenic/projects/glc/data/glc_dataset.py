@@ -26,14 +26,17 @@ TRAIN_IMAGES = 1587395
 EVAL_IMAGES = 40080
 TEST_IMAGES = 36421
 
+NUM_CLASSES = 17037
+
+IMAGE_SIZE = 224
 MEAN_GLC = {
-    "rgb":[106.94150444, 114.87315837, 104.52826283],  #[123.675, 116.28, 103.53] , #[106.94150444, 114.87315837, 104.52826283],
+    "rgb":[106.94150444, 114.87315837, 104.52826283],  #[123.675, 116.28, 103.53] , #
     "near_ir": [131.0458],
     "altitude": [298.1693],
     "landcover": [0],
 }
 STD_GLC = {
-    "rgb": [50.59516823, 44.13010964, 41.84300729], #[58.395, 57.12, 57.375], #[50.59516823, 44.13010964, 41.84300729],
+    "rgb": [50.59516823, 44.13010964, 41.84300729], #[58.395, 57.12, 57.375], #
     "near_ir": [53.0884],
     "altitude": [459.3285],
     "landcover": [34],
@@ -157,15 +160,12 @@ def glc_load_split(
     dataset = dataset.with_options(options)
 
     if subset == "train":
-        dataset = dataset.repeat()
-        dataset = dataset.map(lambda x: transform(x))
-        dataset = dataset.shuffle(16 * batch_size, seed=shuffle_seed)
-        dataset = dataset.batch(batch_size, drop_remainder=subset == "train")
+        dataset = dataset.repeat()       
+        dataset = dataset.shuffle(1000, seed=shuffle_seed) #16 * batch_size
+    dataset = dataset.map(transform)
+    dataset = dataset.batch(batch_size, drop_remainder=subset == "train")
 
-    else:
-      
-        dataset = dataset.map(lambda x: transform(x))
-        dataset = dataset.batch(batch_size, drop_remainder=False)
+    if not subset=="train":
         dataset = dataset.repeat()
 
     return dataset, num_examples
@@ -181,6 +181,18 @@ def get_stats(bands):
 
 
 def normalize_image(image, means, stds, num_channels):
+    MEAN_GLC = {
+    "rgb":[106.94150444, 114.87315837, 104.52826283],  #[123.675, 116.28, 103.53] ,
+    "near_ir": [131.0458],
+    "altitude": [298.1693],
+    "landcover": [0],
+    }
+    STD_GLC = {
+        "rgb": [50.59516823, 44.13010964, 41.84300729], #[58.395, 57.12, 57.375], 
+        "near_ir": [53.0884],
+        "altitude": [459.3285],
+        "landcover": [34],
+    }
 
     print("IMAGE DTYPE", image.dtype)
     image -= tf.constant(means, shape=[1, 1, num_channels], dtype=image.dtype)
@@ -222,7 +234,7 @@ def get_augmentations(
             if subset == "train":
                 # example["label"] = tf.one_hot(example["label"], 17035)
                 image = dataset_utils.augment_random_crop_flip(
-                    image, crop_size, crop_size, num_channels, crop_padding=0, flip=True
+                    image, crop_size, crop_size, num_channels, crop_padding=0, flip=False #True
                 )
                 image = tf.cast(image, dtype=dtype)
 
@@ -274,7 +286,7 @@ def get_dataset(
 
     onehot_labels = dataset_configs.get("onehot_labels", False)
     crop_size = dataset_configs.get("crop_size", 224)
-    data_augmentations = dataset_configs.get("data_augmentations", None)
+    data_augmentations = dataset_configs.get("data_augmentations", ["glc_default"])
     num_channels = get_num_channels(bands)
     means, stds = get_stats(bands)
     data_aug_train = functools.partial(
@@ -313,7 +325,7 @@ def get_dataset(
     # augmentation_params = dataset_configs.get('augmentation_params', None)
     # data_augmentations = functools(partial(get_augmentations,augmentation_params)
 
-    # onehot_labels = dataset_configs.get('onehot_labels', True)
+    
     # For the test set, the actual batch size is
     # test_batch_size * num_test_clips.
     test_batch_size = dataset_configs.get("test_batch_size", eval_batch_size)
@@ -341,7 +353,7 @@ def get_dataset(
             bands=bands,
             dtype=tf.float32,
             image_size=crop_size,
-            shuffle_seed=None,
+            shuffle_seed=shuffle_seed,
             transform=transform,
         )
 

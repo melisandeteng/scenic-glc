@@ -374,6 +374,7 @@ def train(
         metadata={"chrono": chrono.save()},
     )
     start_step = train_state.global_step
+    
     init_checkpoint_path = config.init_from.get("checkpoint_path")
 
     restored_train_state = checkpoints.restore_checkpoint(
@@ -394,7 +395,7 @@ def train(
 
     train_state = model.init_from_train_state(train_state, restored_train_state, config)
 
- 
+    
     train_state = jax_utils.replicate(train_state)
 
     del params  # Do not keep a copy of the initial params.
@@ -554,13 +555,14 @@ def train(
             )
         
     p_rep_fn = jax.pmap(rep_fn, donate_argnums=(0, 1),axis_name='batch',)
-    
+
+   
     for step in range(start_step + 1, total_steps + 1):
         with jax.profiler.StepTraceAnnotation("train", step_num=step):
 
         
             train_batch = next(dataset.train_iter)
-            # eval_batch = next(dataset.valid_iter)
+           
             # Intermediate representation
             """
             representation, _ = p_rep_fn(train_state, 

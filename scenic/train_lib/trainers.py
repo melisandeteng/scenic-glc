@@ -24,7 +24,7 @@ ALL_TRAINERS = {
 }
 
 ALL_TRAINERS_EVAL = {
-    'classification_trainer': classification_trainer.infer,
+    'classification_trainer': classification_trainer, #.infer,
     'transfer_trainer': transfer_trainer,
     
 }
