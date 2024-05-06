@@ -28,42 +28,34 @@ from scenic.projects.baselines import unet
 from scenic.projects.baselines import vit
 from scenic.projects.glc import resnet_adapter_trainer as resnet_adapter
 from scenic.projects.glc import vit_adapter
-
+from scenic.projects.glc import resnet_mhsa_adapter_trainer as resnet_mhsa_adapter
+from scenic.projects.glc import resnet_adapters_trainer as resnet_adapters
+from scenic.projects.glc import resnet_crossattn_trainer as resnet_crossattn
 
 ALL_MODELS = {}
 
 CLASSIFICATION_MODELS = {
-    'fully_connected_classification':
-        fully_connected.FullyConnectedClassificationModel,
-    'simple_cnn_classification':
-        simple_cnn.SimpleCNNClassificationModel,
-    'axial_resnet_multilabel_classification':
-        axial_resnet.AxialResNetMultiLabelClassificationModel,
-    'resnet_classification':
-        resnet.ResNetClassificationModel,
-    'resnet_multilabel_classification':
-        resnet.ResNetMultiLabelClassificationModel,
-    'bit_resnet_classification':
-        bit_resnet.BitResNetClassificationModel,
-    'bit_resnet_multilabel_classification':
-        bit_resnet.BitResNetMultiLabelClassificationModel,
-    'resnet_adapter_classification':
-        resnet_adapter.ResNetClassificationAdapterModel,
-    'vit_classification':
-        vit.ViTClassificationModel,
-    'vit_multilabel_classification':
-        vit.ViTMultiLabelClassificationModel,
-    'hybrid_vit_multilabel_classification':
-        hybrid_vit.HybridViTMultiLabelClassificationModel,
-    'vit_adapter_classification':
-        vit_adapter.ViTClassificationAdapterModel,
-    'mixer_multilabel_classification':
-        mixer.MixerMultiLabelClassificationModel,
+    "fully_connected_classification": fully_connected.FullyConnectedClassificationModel,
+    "simple_cnn_classification": simple_cnn.SimpleCNNClassificationModel,
+    "axial_resnet_multilabel_classification": axial_resnet.AxialResNetMultiLabelClassificationModel,
+    "resnet_classification": resnet.ResNetClassificationModel,
+    "resnet_multilabel_classification": resnet.ResNetMultiLabelClassificationModel,
+    "bit_resnet_classification": bit_resnet.BitResNetClassificationModel,
+    "bit_resnet_multilabel_classification": bit_resnet.BitResNetMultiLabelClassificationModel,
+    "resnet_adapter_classification": resnet_adapter.ResNetClassificationAdapterModel,
+    "resnet_mhsa_adapter_classification": resnet_mhsa_adapter.ResNetClassificationAdapterModel,
+    "resnet_channel_mhsa_adapter_classification": resnet_adapters.ResNetClassificationAdapterModel,
+    "resnet_crossattn_adapter_classification": resnet_crossattn.ResNetClassificationAdapterModel,
+    "vit_classification": vit.ViTClassificationModel,
+    "vit_multilabel_classification": vit.ViTMultiLabelClassificationModel,
+    "hybrid_vit_multilabel_classification": hybrid_vit.HybridViTMultiLabelClassificationModel,
+    "vit_adapter_classification": vit_adapter.ViTClassificationAdapterModel,
+    "mixer_multilabel_classification": mixer.MixerMultiLabelClassificationModel,
 }
 
 SEGMENTATION_MODELS = {
-    'simple_cnn_segmentation': simple_cnn.SimpleCNNSegmentationModel,
-    'unet_segmentation': unet.UNetSegmentationModel,
+    "simple_cnn_segmentation": simple_cnn.SimpleCNNSegmentationModel,
+    "unet_segmentation": unet.UNetSegmentationModel,
 }
 
 
@@ -72,7 +64,7 @@ ALL_MODELS.update(SEGMENTATION_MODELS)
 
 
 def get_model_cls(model_name: str) -> Type[base_model.BaseModel]:
-  """Get the corresponding model class based on the model string.
+    """Get the corresponding model class based on the model string.
 
   API:
   ```
@@ -88,6 +80,6 @@ def get_model_cls(model_name: str) -> Type[base_model.BaseModel]:
   Raises:
     ValueError if model_name is unrecognized.
   """
-  if model_name not in ALL_MODELS.keys():
-    raise ValueError('Unrecognized model: {}'.format(model_name))
-  return ALL_MODELS[model_name]
+    if model_name not in ALL_MODELS.keys():
+        raise ValueError("Unrecognized model: {}".format(model_name))
+    return ALL_MODELS[model_name]

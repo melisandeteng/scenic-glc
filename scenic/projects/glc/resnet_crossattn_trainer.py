@@ -23,7 +23,7 @@ from clu import periodic_actions
 from clu import platform
 from flax import jax_utils
 
-from scenic.projects.glc.adapters import BottleneckAdapterParallel
+from scenic.projects.glc.adapters import CrossAttentionAdapter
 import jax
 from jax.example_libraries.optimizers import clip_grads
 import jax.profiler
@@ -45,27 +45,6 @@ def ids_str2ints(ids_str):
 
 def ids_ints2str(ids_ints):
     return "_".join([str(v) for v in sorted(ids_ints)])
-
-
-def adhoc_match(m_key_str, m_params, model_flat):
-    print("match adhoc")
-    if m_key_str == "batch_stats/ResidualBlock_2/bn3/var":
-        model_flat[tuple(["batch_stats", "bn3block_0", "var"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_2/bn3/mean":
-        model_flat[tuple(["batch_stats", "bn3block_0", "mean"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_6/bn3/var":
-        model_flat[tuple(["batch_stats", "bn3block_1", "var"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_6/bn3/mean":
-        model_flat[tuple(["batch_stats", "bn3block_1", "mean"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_12/bn3/var":
-        model_flat[tuple(["batch_stats", "bn3block_2", "var"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_12/bn3/mean":
-        model_flat[tuple(["batch_stats", "bn3block_2", "mean"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_15/bn3/var":
-        model_flat[tuple(["batch_stats", "bn3block_3", "var"])] = m_params
-    elif m_key_str == "batch_stats/ResidualBlock_15/bn3/mean":
-        model_flat[tuple(["batch_stats", "bn3block_3", "mean"])] = m_params
-    return model_flat
 
 
 def _replace_dict(
@@ -99,8 +78,7 @@ def _replace_dict(
         dict(restored), keep_empty_nodes=True
     )
     model_flat = flax.traverse_util.flatten_dict(dict(model), keep_empty_nodes=True)
-    # import pdb;pdb.set_trace()
-    # ('/init_bn').strip("/").split("/")
+
     for m_key, m_params in restored_flat.items():
 
         # pytype: disable=attribute-error
@@ -114,10 +92,9 @@ def _replace_dict(
         m_key = tuple(par)
         m_key_str = "/".join(m_key)
         if m_key not in model_flat:
-            logging.warning("%s in checkpoint doesn't exist in model. Skip.", m_key_str)
-            print(m_key_str)
-            adhoc_match(m_key_str, m_params, model_flat)
-            continue
+            logging.warning("%s in checkpoint doesn't exist in model.", m_key_str)
+            print(m_key_str, " not in model")
+
         if skip_regex and re.findall(skip_regex, m_key_str):
             logging.info("Skip loading parameter %s.", m_key_str)
             continue
@@ -171,17 +148,33 @@ class ResidualBlock(nn.Module):
 
         else:
             y = conv(nout, (3, 3), padding=[(1, 1), (1, 1)], name="conv3")(y)
+
         if add_bn:
-            y = batch_norm(name="bn3")(y)  # , scale_init=nn.initializers.zeros)(y)
+            # we only add batch norm if we are not in the last block of the same resolution
+            y = batch_norm(name="bn3")(y)
             y = nn_layers.IdentityLayer(name="relu3")(nn.relu(residual + y))
         else:
-            y = batch_norm(name="bn3")(y)  # , scale_init=nn.initializers.zeros)(y)
+            y = batch_norm(name="bn3")(y)
         return y, residual
+
+
+class Scaling(nn.Module):
+    def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+        """Applies a linear transformation to the inputs along the last dimension.
+
+        Args:
+          inputs: The nd-array to be transformed.
+
+        Returns:
+          The transformed input.
+        """
+        num_c = inputs.shape[-2]
+        num_xtra_c = num_c - 3
+        kernel = self.param("kernel", 0, (jnp.shape(inputs)[-1], num_xtra_c),)
 
 
 class ResNet(nn.Module):
     """ResNet architecture.
-
   Attributes:
     num_outputs: Num output classes. If None, a dict of intermediate feature
       maps is returned.
@@ -190,16 +183,25 @@ class ResNet(nn.Module):
     kernel_init: Kernel initialization.
     bias_init: Bias initialization.
     dtype: Data type, e.g. jnp.float32.
+    mlp_dim: list of mlp_dims for each adapter
+    num_heads: list of num_heads for each adapter
   """
 
-    adapter_layers: str
-    adapter_dim: int
-    num_outputs: Optional[int]
-    num_filters: int = 64
+    num_heads: int
+    head_dim: int
     num_layers: int = 50
+    num_filters: int = 64
+    dtype: Any = jnp.float32
+    kv_features: int = None
+    attention_dropout_rate: float = 0.1
+    out_features: Any = None
+
     kernel_init: Callable[..., Any] = initializers.lecun_normal()
     bias_init: Callable[..., Any] = initializers.zeros
-    dtype: jnp.dtype = jnp.float32
+    dropout_rate: float = 0.1
+    stochastic_depth: float = 0.0
+    add_bn_extra: bool = False
+    num_outputs: int = None
 
     @nn.compact
     def __call__(
@@ -219,7 +221,8 @@ class ResNet(nn.Module):
         if self.num_layers not in BLOCK_SIZE_OPTIONS:
             raise ValueError("Please provide a valid number of layers")
         block_sizes, bottleneck = BLOCK_SIZE_OPTIONS[self.num_layers]
-        adapter_layers_ids = ids_str2ints(self.adapter_layers)  # <MOD>
+
+        conv = functools.partial(nn.Conv, use_bias=False, dtype=self.dtype)
 
         batch_norm = functools.partial(
             nn.BatchNorm,
@@ -252,38 +255,44 @@ class ResNet(nn.Module):
             ResidualBlock, dtype=self.dtype, bottleneck=bottleneck
         )
         representations = {"stem": x}
+
         for i, block_size in enumerate(block_sizes):
+
             strides_adapter = (2, 2) if i > 0 else (1, 1)
 
             x_copy = x.copy()
             print(x.shape[-1] if i == 0 else x.shape[-1] * 2)
-            # name=f'residual_adapter_{i}',
+
             for j in range(block_size):
                 strides = (2, 2) if i > 0 and j == 0 else (1, 1)
                 filters = self.num_filters * 2 ** i
 
                 x, residual = residual_block(filters=filters, strides=strides)(
-                    x, train, add_bn=j != block_size - 1
+                    x, train, add_bn=(j != block_size - 1)
                 )
-            # if j != (block_size-1):
-            #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
-            #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
+                # if j != (block_size-1):
+                #     y = batch_norm(name='bn3', scale_init=nn.initializers.zeros)(x)
+                #    x = nn_layers.IdentityLayer(name='relu3')(nn.relu(residual + y))
             representations[f"stage_{i + 1}"] = x
             # print(x.shape)
+            # y = nn.LayerNorm(dtype=self.dtype)(x_copy)
+            nout = filters * 4 if bottleneck else filters
+            y = CrossAttentionAdapter(
+                num_heads=self.num_heads[i],
+                head_dim=self.head_dim[0],
+                kv_features=self.kv_features,
+                kv_initialization=nn.initializers.xavier_uniform(),
+                out_feats=nout,
+            )(x_copy, deterministic=not train)
+            if y.shape != x.shape:
+                y = conv(nout, (1, 1), strides_adapter, name="proj_conv_" + str(i))(y)
+                print("output", y.shape)
 
-            y = BottleneckAdapterParallel(
-                adapter_dim=self.adapter_dim,
-                hidden_dim=x.shape[-1],  # if i==0 else x.shape[-1]*2,
-                strides=strides_adapter,
-            )(x_copy)
-            # print(y.shape)
-            # print("hidden_dim", x.shape[-1] if i==0 else x.shape[-1]*2)
-            # x = x+y
-            # x = batch_norm(name='bn3'+ f"block_{i}", scale_init=nn.initializers.zeros)(x)
-            # x = nn_layers.IdentityLayer(name='relu3'+ f"_{i}")(nn.relu(residual + x))
-            x = nn_layers.IdentityLayer(name="relu3" + f"_{i}")(
-                nn.relu(y + x + residual)
-            )
+            x = x + y + residual
+            if self.add_bn_extra:
+                x = batch_norm(name="bn3" + f"block_{i}")(x)
+
+            x = nn_layers.IdentityLayer(name="relu3" + f"_{i}")(nn.relu(x))
 
         # Head.
         if self.num_outputs:
@@ -347,11 +356,7 @@ def init_from_model_state(
     restored_params = pretrain_state["params"]
     restored_model_state = pretrain_state["model_state"]
     # TODO(scenic): Add support for optionally restoring optimizer state.
-    if (
-        restored_model_state is not None
-        and train_state.model_state is not None
-        and train_state.model_state
-    ):
+    if restored_model_state is not None and train_state.model_state is not None:
         if model_prefix_path:
             # Insert model prefix after 'batch_stats'.
             model_prefix_path = ["batch_stats"] + model_prefix_path
@@ -382,13 +387,21 @@ class ResNetClassificationAdapterModel(ClassificationModel):
     def build_flax_model(self) -> nn.Module:
         model_dtype = getattr(jnp, self.config.get("model_dtype_str", "float32"))
         return ResNet(
-            adapter_layers=self.config.adapter_layers,
-            adapter_dim=self.config.adapter_dim,
             num_outputs=self.dataset_meta_data["num_classes"],
             num_filters=self.config.num_filters,
             num_layers=self.config.num_layers,
             dtype=model_dtype,
+            num_heads=self.config.adapter_num_heads,
+            head_dim=self.config.adapter_head_dim,
+            kv_features=self.config.get("adapter_kv_features", None),
+            add_bn_extra=self.config.get("add_bn_extra", False),
+            out_features=self.config.get("out_features", None),
         )
+
+        """dropout_rate: float = 0.1
+      attention_dropout_rate: float = 0.1
+      stochastic_depth: float = 0.0
+    """
 
     def default_flax_model_config(self) -> ml_collections.ConfigDict:
         return _get_default_configs_for_testing()
@@ -416,7 +429,7 @@ class ResNetClassificationAdapterModel(ClassificationModel):
       Updated train_state.
     """
         print("INITIALIZING RESNET ADAPTER MODEL")
-
+        # import pdb; pdb.set_trace()
         if hasattr(train_state, "optimizer"):
             # TODO(dehghani): Remove support for flax optim.
             params = flax.core.unfreeze(train_state.optimizer.target)
@@ -441,9 +454,8 @@ class ResNetClassificationAdapterModel(ClassificationModel):
                     aa = params[pname]["kernel"].copy()
                     aa = aa.at[:, :, :3, :].set(pvalue["kernel"])
                     if model_conf.init_new_channel_zero:
-                        print("init new channels to zero")
+                        print("INIT EXTRA CHANNELS TO 0 ")
                         aa = aa.at[:, :, 3:, :].set(0)
-
                     params[pname] = {"kernel": aa}
 
                 else:
@@ -453,27 +465,14 @@ class ResNetClassificationAdapterModel(ClassificationModel):
 
                             params[pname] = pvalue
                         else:
-                            if (
-                                "bn3" in pvalue.keys()
-                                and "bn3" not in params[pname].keys()
-                            ):
-                                bn3 = pvalue.pop("bn3")
-                                if pname == "ResidualBlock_2":
-                                    params["bn3block_0"] = bn3
-                                elif pname == "ResidualBlock_6":
-                                    params["bn3block_1"] = bn3
-                                elif pname == "ResidualBlock_12":
-                                    params["bn3block_2"] = bn3
-                                elif pname == "ResidualBlock_15":
-                                    params["bn3block_3"] = bn3
-                                else:
-                                    print("ERROR")
-                            params[pname] = pvalue
+                            print("skip param", pname, " due to different keys")
+
                     else:
                         print("skip param", pname)
 
         logging.info("Parameter summary after initialising from train state:")
         debug_utils.log_param_shapes(params)
+        # import pdb; pdb.set_trace()
         if hasattr(train_state, "optimizer"):
             # TODO(dehghani): Remove support for flax optim.
             return train_state.replace(
@@ -495,6 +494,7 @@ class ResNetClassificationModel(ClassificationModel):
     def build_flax_model(self) -> nn.Module:
         model_dtype = getattr(jnp, self.config.get("model_dtype_str", "float32"))
         return ResNet(
+            num_heads=self.config.num_heads,
             num_outputs=self.dataset_meta_data["num_classes"],
             num_filters=self.config.num_filters,
             num_layers=self.config.num_layers,
@@ -566,6 +566,7 @@ class ResNetMultiLabelClassificationModel(MultiLabelClassificationModel):
     def build_flax_model(self) -> nn.Module:
         model_dtype = getattr(jnp, self.config.get("model_dtype_str", "float32"))
         return ResNet(
+            num_heads=self.config.num_heads,
             num_outputs=self.dataset_meta_data["num_classes"],
             num_filters=self.config.num_filters,
             num_layers=self.config.num_layers,
@@ -658,7 +659,8 @@ def train_step(
     )
 
     def training_loss_fn(params, fixed_params):
-        variables = {"params": params, **train_state.model_state}
+
+        variables = {"params": params, **train_state.model_state.model_state}
         logits, new_model_state = flax_model.apply(
             variables,
             batch["inputs"],

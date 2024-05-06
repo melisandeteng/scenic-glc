@@ -133,6 +133,7 @@ class ResNet(nn.Module):
     kernel_init: Kernel initialization.
     bias_init: Bias initialization.
     dtype: Data type, e.g. jnp.float32.
+ 
   """
   num_outputs: Optional[int]
   num_filters: int = 64
@@ -141,12 +142,13 @@ class ResNet(nn.Module):
   bias_init: Callable[..., Any] = initializers.zeros
   dtype: jnp.dtype = jnp.float32
 
+
   @nn.compact
   def __call__(
-      self,
-      x: jnp.ndarray,
-      train: bool = False,
-      debug: bool = False) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    self,
+    x: jnp.ndarray,
+    train: bool = False,
+    debug: bool = False) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:
     """Applies ResNet model to the inputs.
 
     Args:
@@ -157,7 +159,9 @@ class ResNet(nn.Module):
 
     Returns:
        Un-normalized logits.
+    
     """
+
     if self.num_layers not in BLOCK_SIZE_OPTIONS:
       raise ValueError('Please provide a valid number of layers')
     block_sizes, bottleneck = BLOCK_SIZE_OPTIONS[self.num_layers]
@@ -191,11 +195,10 @@ class ResNet(nn.Module):
       representations[f'stage_{i + 1}'] = x
 
     # Head.
-    #import pdb; pdb.set_trace()
+   
     if self.num_outputs:
-     # x_copy = jnp.copy(x)
+
       x = jnp.mean(x, axis=(1, 2))
-      #x_copy_2 = jnp.copy(x)
       x = nn_layers.IdentityLayer(name='pre_logits')(x)
       x = nn.Dense(
           self.num_outputs,
@@ -204,7 +207,7 @@ class ResNet(nn.Module):
           dtype=self.dtype,
           name='output_projection')(
               x)
-      return x #,  x_copy, x_copy_2
+      return x
     else:
       return representations
 
@@ -249,9 +252,9 @@ def init_from_model_state(
     Returns:
         Updated train_state.
     """
-    #import pdb; pdb.set_trace()
+    
     name_mapping = name_mapping or {}
-    restored_params = pretrain_state['params']
+    #restored_params = pretrain_state['params']
     restored_model_state = pretrain_state['model_state']
     
     # TODO(scenic): Add support for optionally restoring optimizer state.
@@ -274,8 +277,7 @@ def init_from_model_state(
                                 model_prefix_path,
                                 name_mapping,
                                 skip_regex)
-    #train_state = train_state.replace(  # pytype: disable=attribute-error
-    #    model_state=model_state)
+    
     return model_state
 
 class ResNetClassificationModel(ClassificationModel):
@@ -296,7 +298,7 @@ class ResNetClassificationModel(ClassificationModel):
 
   def init_from_train_state(
       self, train_state: Any, restored_train_state: Any,
-      restored_model_cfg: ml_collections.ConfigDict) -> Any:
+      model_conf: ml_collections.ConfigDict) -> Any:
     """Updates the train_state with data from `restored_train_state`.
 
     This function is writen to be used for 'fine-tuning' experiments. Here, we
@@ -307,19 +309,21 @@ class ResNetClassificationModel(ClassificationModel):
       train_state: A raw TrainState for the model.
       restored_train_state: A TrainState that is loaded with parameters/state of
         a pretrained model.
-      restored_model_cfg: Configuration of the model from which the
-        `restored_train_state` come from. Usually used for some asserts.
+      model_conf: Configuration of the model from which the
+        `train_state` come from. Usually used for some asserts.
 
     Returns:
       Updated train_state.
     """
-    del restored_model_cfg
-    
+
+
     if hasattr(train_state, 'optimizer'):
       # TODO(dehghani): Remove support for flax optim.
+      
       params = flax.core.unfreeze(train_state.optimizer.target)
       restored_params = flax.core.unfreeze(
           restored_train_state.optimizer.target)
+     
     else:
       params = flax.core.unfreeze(train_state.params)
       restored_params = flax.core.unfreeze(restored_train_state["params"])
@@ -331,32 +335,40 @@ class ResNetClassificationModel(ClassificationModel):
         # the label space is different.
         continue
       else:
-        
+      
         if pname=="stem_conv":
             print("RESTORING STEM CONV RGB CHANNELS FROM INIT")
             
             aa =params[pname]["kernel"].copy()
             aa = aa.at[:,:,:3,:].set(pvalue["kernel"])
+            if model_conf.init_new_channel_zero:
+                print("Initialize new channel to zero")
+                aa = aa.at[:,:,3:,:].set(0)
             params[pname] = {"kernel":aa}
 
         else:
-            params[pname] = pvalue
+            if pname in params: 
+                print("loading ", pname)
+                params[pname] = pvalue
+            else: 
+                print("impossible to match parameter ", pname)
     
     logging.info('Parameter summary after initialising from train state:')
     debug_utils.log_param_shapes(params)
-    
+    train_state = train_state.replace(params=flax.core.freeze(params))
     if hasattr(train_state, 'optimizer'):
+      print("has_attr optimizer")
       # TODO(dehghani): Remove support for flax optim.
       return train_state.replace(
           optimizer=train_state.optimizer.replace(
               target=flax.core.freeze(params)),
           model_state=restored_train_state.model_state)
     else:
-      
+      print("Init model state")
       model_state = init_from_model_state(train_state,restored_train_state)
       return train_state.replace(
-          params=flax.core.freeze(params) ,
           model_state=model_state)
+    
 
 
 class ResNetMultiLabelClassificationModel(MultiLabelClassificationModel):

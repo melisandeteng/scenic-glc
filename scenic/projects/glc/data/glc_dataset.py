@@ -182,9 +182,11 @@ def get_stats(bands):
 
 
 def normalize_image(image, means, stds, num_channels):
+
     print("IMAGE DTYPE", image.dtype)
     image -= tf.constant(means, shape=[1, 1, num_channels], dtype=image.dtype)
     image /= tf.constant(stds, shape=[1, 1, num_channels], dtype=image.dtype)
+
     return image
 
 

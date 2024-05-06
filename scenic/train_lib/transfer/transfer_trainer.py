@@ -89,6 +89,7 @@ def train_step(
     Returns:
       Updated state of training and computed metrics for logging.
     """
+
     training_logs = {}
     new_rng, rng = jax.random.split(train_state.rng)
 
@@ -108,8 +109,9 @@ def train_step(
     dropout_rng = train_utils.bind_rng_to_host_device(
         rng, axis_name="batch", bind_to="device"
     )
-
+    # import pdb; pdb.set_trace()
     def training_loss_fn(params):
+
         variables = {"params": params, **train_state.model_state}
         logits, new_model_state = flax_model.apply(
             variables,
@@ -259,6 +261,7 @@ def representation_fn(
         batch = jax.lax.all_gather(batch, "batch")
     return representation, batch["label"], batch["batch_mask"]
 
+
 def representation_fn(
     train_state: train_utils.TrainState,
     batch: Batch,
@@ -292,6 +295,7 @@ def representation_fn(
         representation = jax.lax.all_gather(representation, "batch")
         batch = jax.lax.all_gather(batch, "batch")
     return representation, batch["label"]
+
 
 def train(
     *,
@@ -330,6 +334,7 @@ def train(
     model = model_cls(config, dataset.meta_data)
 
     # Initialize model.
+
     rng, init_rng = jax.random.split(rng)
     (params, model_state, num_trainable_params, gflops) = train_utils.initialize_model(
         model_def=model.flax_model,
@@ -370,27 +375,22 @@ def train(
     start_step = train_state.global_step
     init_checkpoint_path = config.init_from.get("checkpoint_path")
 
-    restored_train_state = checkpoints.restore_checkpoint(init_checkpoint_path, None,start_step)
-    if 'params' in restored_train_state:
+    restored_train_state = checkpoints.restore_checkpoint(
+        init_checkpoint_path, None, start_step
+    )
+
+    if "params" in restored_train_state:
         print("restored_train_state was trained using optax")
-        restored_params = flax.core.freeze(restored_train_state['params'])
+        restored_params = flax.core.freeze(restored_train_state["params"])
     else:
         print("restored_train_state was trained using flax.optim.")
-        #Note that this does
+        # Note that this does
         # not convert the naming of pre-Linen checkpoints.
-        restored_params = restored_train_state['optimizer']['target']["params"]
+        restored_params = restored_train_state["optimizer"]["target"]["params"]
         restored_train_state["params"] = restored_params
-    
-    model.init_from_train_state(train_state, restored_train_state, config)
-    train_state = train_utils.TrainState(
-        global_step=0,
-        opt_state=opt_state,
-        tx=tx,
-        params=params,
-        model_state=model_state,
-        rng=train_rng,
-        metadata={"chrono": chrono.save()},
-    )
+    # import pdb; pdb.set_trace()
+    train_state = model.init_from_train_state(train_state, restored_train_state, config)
+
     """
     print("restore checkpoint")
     if config.checkpoint:
@@ -398,7 +398,6 @@ def train(
     chrono.load(train_state.metadata["chrono"])
     del train_state.metadata["chrono"]
     """
-    #import pdb; pdb.set_trace()
     print("restore pretrained model")
     """
     if (
@@ -456,9 +455,7 @@ def train(
     total_steps, steps_per_epoch = train_utils.get_num_training_steps(
         config, dataset.meta_data
     )
-    #import pdb
 
-    #pdb.set_trace()
     train_step_pmapped = jax.pmap(
         functools.partial(
             train_step,
@@ -485,7 +482,6 @@ def train(
         axis_name="batch",
         # We can donate the eval_batch's buffer.
         donate_argnums=(1,),
-        
     )
     if "fewshot" in config:
         representation_fn_fewshot = functools.partial(
@@ -611,11 +607,11 @@ def train(
     """
     for step in range(start_step + 1, total_steps + 1):
         with jax.profiler.StepTraceAnnotation("train", step_num=step):
-            
-            #import pdb; pdb.set_trace()
+
+            # import pdb; pdb.set_trace()
             train_batch = next(dataset.train_iter)
-            #eval_batch = next(dataset.valid_iter)
-            #print("AAAAAA")
+            # eval_batch = next(dataset.valid_iter)
+            # print("AAAAAA")
             # Intermediate representation
             """
             representation, _ = p_rep_fn(train_state, 
@@ -636,9 +632,9 @@ def train(
         axis_name='batch',)(train_state, 
                     eval_batch) 
             """
-            #train_state, t_metrics, t_logs = eval_step_pmapped(
+            # train_state, t_metrics, t_logs = eval_step_pmapped(
             #    train_state, eval_batch
-            #)
+            # )
             train_state, t_metrics, t_logs = train_step_pmapped(
                 train_state, train_batch
             )
@@ -683,7 +679,7 @@ def train(
                 comet_exp.log_metric(
                     "train_accuracy", train_summary["accuracy"], step=step
                 )
-                #comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
+                # comet_exp.log_metric("prec", train_summary["prec@1"], step=step)
                 comet_exp.log_metric("train_topk", train_summary["topk"], step=step)
             # Reset metric accumulation for next evaluation cycle.
             train_metrics, extra_training_logs = [], []
@@ -767,8 +763,8 @@ def train(
     return train_state, train_summary, eval_summary
 
 
-
-def infer(*,
+def infer(
+    *,
     rng: jnp.ndarray,
     config: ml_collections.ConfigDict,
     model_cls: Type[base_model.BaseModel],
@@ -776,9 +772,8 @@ def infer(*,
     workdir: str,
     writer: metric_writers.MetricWriter,
     comet_exp=None,
-
 ) -> Tuple[train_utils.TrainState, Dict[str, Any], Dict[str, Any]]:
-    
+
     # import pdb; pdb.set_trace()
     lead_host = jax.process_index() == 0
     # Build the loss_fn, metrics, and flax_model.
@@ -811,7 +806,7 @@ def infer(*,
 
     # Create chrono class to track and store training statistics and metadata:
     chrono = train_utils.Chrono()
-
+    # import pdb; pdb.set_trace()
     train_state = train_utils.TrainState(
         global_step=0,
         opt_state=opt_state,
@@ -836,16 +831,16 @@ def infer(*,
         # We can donate the eval_batch's buffer.
         donate_argnums=(1,),
     )
-    #log_eval_steps = config.get("log_eval_steps") or steps_per_epoch
-    #if not log_eval_steps:
+    # log_eval_steps = config.get("log_eval_steps") or steps_per_epoch
+    # if not log_eval_steps:
     #    raise ValueError("'log_eval_steps' should be specified in the config.")
-    #checkpoint_steps = config.get("checkpoint_steps") or log_eval_steps
-    #log_summary_steps = config.get("log_summary_steps") or log_eval_steps
+    # checkpoint_steps = config.get("checkpoint_steps") or log_eval_steps
+    # log_summary_steps = config.get("log_summary_steps") or log_eval_steps
     # Ceil rounding such that we include the last incomplete batch.
     eval_batch_size = config.get("eval_batch_size", config.batch_size)
     total_eval_steps = int(
-                            np.ceil(dataset.meta_data["num_eval_examples"] / eval_batch_size)
-                                )
+        np.ceil(dataset.meta_data["num_eval_examples"] / eval_batch_size)
+    )
     steps_per_eval = config.get("steps_per_eval") or total_eval_steps
     eval_metrics = []
     train_state = train_utils.sync_model_state_across_replicas(train_state)
@@ -860,15 +855,16 @@ def infer(*,
     print(eval_summary)
     train_batch_size = config.get("train_batch_size", config.batch_size)
     total_train_steps = int(
-                             np.ceil(dataset.meta_data["num_train_examples"] / train_batch_size)
-                                                                            )
+        np.ceil(dataset.meta_data["num_train_examples"] / train_batch_size)
+    )
     steps_per_eval = config.get("steps_per_eval") or total_train_steps
-    #train_state = train_utils.sync_model_state_across_replicas(train_state)
+    # train_state = train_utils.sync_model_state_across_replicas(train_state)
     for _ in range(steps_per_eval):
         eval_batch = next(dataset.train_iter)
         e_metrics, _ = eval_step_pmapped(train_state, eval_batch)
         eval_metrics.append(train_utils.unreplicate_and_get(e_metrics))
         eval_summary = train_utils.log_eval_summary(
-                step=start_step, eval_metrics=eval_metrics, writer=writer)
+            step=start_step, eval_metrics=eval_metrics, writer=writer
+        )
     print("TRAIN PERFORMANCE")
     print(eval_summary)

@@ -21,29 +21,24 @@ def get_config():
 
     config.base_dir = (
       '/network/scratch/t/tengmeli/temp_glc/')
-            #"/mnt/disks/persist/" )
-            #'/home/tengmeli/')
-    """config.tables = {
-      'train': 'train_image.tfrecords',
-      'validation': 'val_image.tfrecords',
-      'test': 'test_image.tfrecords'
-    }"""
+
+
     config.tables = {
-      'train': 'train_images_new3.tfrecords',
-      'validation': 'val_images_new3.tfrecords',
-      'test': 'test_images_new.tfrecords'
+      'train': 'train_images_new6.tfrecords',
+      'validation':'val_images_new6.tfrecords',
+      'test': 'test_images_new5.tfrecords'
     }
     config.examples_per_subset = {
-      'train': 1587395,
-      'validation': 40080,
+      'train':1587395,
+      'validation':40080,
       'test': 36421
     }
     
-    config.no_comet = False
+    config.no_comet = True
     config.comet= {"tags":["test_run"]}
  
     config.onehot_labels= False   
-    config.bands = ["rgb", "near_ir","altitude"] #, "near_ir"]
+    config.bands = ["rgb", "near_ir"] #, "near_ir"]
     config.num_classes = 17035
     config.crop_size=224
     config.data_augmentations = ["glc_default"]
@@ -52,17 +47,21 @@ def get_config():
     config.num_filters = 64
     config.num_layers = 50
     config.model_dtype_str = 'float32'
+    
+    
 
     # Training.
     config.trainer_name = 'transfer_trainer'
     config.optimizer = 'momentum'
     config.optimizer_configs = ml_collections.ConfigDict()
     config.optimizer_configs.momentum = 0.9
+    config.optimizer_configs.skip_scale_and_bias_regularization=True
     config.l2_decay_factor = .00005
     config.max_grad_norm = None
+    config.skip_scale_and_bias_regularization=True
     config.label_smoothing = None
-    config.num_training_epochs = 25
-    config.batch_size = 32 #32 #8192
+    config.num_training_epochs = 90
+    config.batch_size =  128 #8192
     config.rng_seed = 0
     config.init_head_bias = -10.0
     
